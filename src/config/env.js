@@ -17,4 +17,7 @@ export const env = {
   anthropicKey: process.env.ANTHROPIC_API_KEY,
   peya: { clientId: process.env.PEYA_CLIENT_ID, clientSecret: process.env.PEYA_CLIENT_SECRET },
   workerPollMs: Number(process.env.WORKER_POLL_MS) || 2000,
+  // Rol del proceso: 'api' (solo HTTP), 'worker' (solo cola) o 'all' (ambos en un proceso).
+  // Permite un único start command para múltiples servicios en Railway.
+  serviceRole: process.env.SERVICE_ROLE || 'api',
 };
