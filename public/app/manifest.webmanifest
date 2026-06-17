@@ -1,0 +1,15 @@
+{
+  "name": "RestaurApp · Panel",
+  "short_name": "RestaurApp",
+  "description": "Panel de ventas, gastos y pedidos para tu comercio.",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#15110d",
+  "theme_color": "#15110d",
+  "lang": "es",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

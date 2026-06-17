@@ -17,7 +17,20 @@ import webhookRoutes from './routes/webhooks.js';
 export function createApp() {
   const app = express();
 
-  app.use(helmet());
+  // CSP a medida: permite estilos inline + Google Fonts (PWA y landing), scripts solo self.
+  app.use(helmet({
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'"],
+        upgradeInsecureRequests: null, // no forzar https (rompe dev local)
+      },
+    },
+  }));
   app.use(cors());
   app.use(pinoHttp({ logger }));
 
