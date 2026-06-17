@@ -37,6 +37,17 @@ export async function login(email, password) {
   return data;
 }
 
+export async function register(payload) {
+  const data = await request('/auth/register', { method: 'POST', body: payload });
+  setToken(data.token);
+  return data;
+}
+
+// Config pública (¿registro abierto?). No rompe si falla: asume cerrado.
+export async function getAuthConfig() {
+  try { return await request('/auth/config'); } catch { return { registrationOpen: false }; }
+}
+
 export const api = {
   summary: (q = '') => request(`/dashboard/summary${q}`),
   sales: (q = '') => request(`/dashboard/sales${q}`),

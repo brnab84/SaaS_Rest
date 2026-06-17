@@ -5,9 +5,14 @@ import { env } from '../config/env.js';
 import { validate } from '../middleware/validate.js';
 import { Tenant } from '../models/Tenant.js';
 import { User } from '../models/User.js';
-import { unauthorized, badRequest } from '../utils/errors.js';
+import { unauthorized, badRequest, forbidden } from '../utils/errors.js';
 
 const router = Router();
+
+// Config pública: el frontend la consulta para mostrar/ocultar "crear cuenta".
+router.get('/config', (_req, res) => {
+  res.json({ registrationOpen: env.registrationOpen });
+});
 
 const registerSchema = z.object({
   businessName: z.string().min(2),
@@ -19,6 +24,7 @@ const registerSchema = z.object({
 // Alta de comercio + usuario owner
 router.post('/register', validate(registerSchema), async (req, res, next) => {
   try {
+    if (!env.registrationOpen) return next(forbidden('El registro de nuevas cuentas está cerrado'));
     const { businessName, slug, email, password } = req.body;
     if (await Tenant.findOne({ slug })) return next(badRequest('slug ya en uso'));
     const tenant = await Tenant.create({ name: businessName, slug });

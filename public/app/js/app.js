@@ -1,5 +1,5 @@
 import { applyTheme, getTheme, renderThemePicker } from './themes.js';
-import { api, login, logout, isAuthed } from './api.js';
+import { api, login, register, getAuthConfig, logout, isAuthed } from './api.js';
 
 const root = document.getElementById('root');
 
@@ -41,7 +41,8 @@ function renderLogin() {
           </div>
           <div class="error" id="login-error"></div>
           <button class="btn btn-accent btn-block" type="submit" id="login-btn">Entrar</button>
-          <div class="hint">Probá los temas con los colores de arriba. ¿Sin cuenta? Registrá tu comercio con <span class="mono">POST /api/auth/register</span>.</div>
+          <div class="hint" id="signup-hint" style="display:none">¿Todavía no tenés cuenta? <a href="#" id="to-signup">Creá tu comercio</a>.</div>
+          <div class="hint">Probá los temas con los colores de arriba.</div>
           <div style="margin-top:16px" id="theme-slot"></div>
         </form>
       </div>
@@ -59,6 +60,81 @@ function renderLogin() {
     } catch (ex) {
       err.textContent = ex.message || 'No se pudo iniciar sesión';
       btn.disabled = false; btn.textContent = 'Entrar';
+    }
+  });
+  // Mostrar "crear cuenta" solo si el admin tiene el registro abierto.
+  getAuthConfig().then((cfg) => {
+    if (!cfg.registrationOpen) return;
+    const hint = document.getElementById('signup-hint');
+    if (!hint) return;
+    hint.style.display = '';
+    document.getElementById('to-signup').addEventListener('click', (e) => { e.preventDefault(); renderSignup(); });
+  });
+}
+
+/* ---------- Crear cuenta ---------- */
+function slugify(s) {
+  return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function renderSignup() {
+  root.innerHTML = `
+    <div class="app">
+      <div class="login-wrap">
+        <form class="login" id="signup-form">
+          <h1>Creá tu comercio</h1>
+          <p class="muted" style="font-size:13px;margin:4px 0 0">Empezá a recibir y gestionar pedidos.</p>
+          <div class="field">
+            <label for="biz">Nombre del comercio</label>
+            <input class="input" id="biz" type="text" required />
+          </div>
+          <div class="field">
+            <label for="slug">Dirección de tu landing (slug)</label>
+            <input class="input mono" id="slug" type="text" pattern="[a-z0-9-]+" required />
+          </div>
+          <div class="field">
+            <label for="su-email">Email</label>
+            <input class="input" id="su-email" type="email" autocomplete="email" required />
+          </div>
+          <div class="field">
+            <label for="su-pass">Contraseña (mín. 8)</label>
+            <input class="input" id="su-pass" type="password" minlength="8" autocomplete="new-password" required />
+          </div>
+          <div class="error" id="signup-error"></div>
+          <button class="btn btn-accent btn-block" type="submit" id="signup-btn">Crear cuenta</button>
+          <div class="hint">¿Ya tenés cuenta? <a href="#" id="to-login">Iniciá sesión</a>.</div>
+          <div style="margin-top:16px" id="theme-slot"></div>
+        </form>
+      </div>
+    </div>`;
+  mountPicker();
+
+  const biz = document.getElementById('biz');
+  const slug = document.getElementById('slug');
+  let slugEdited = false;
+  slug.addEventListener('input', () => { slugEdited = true; });
+  biz.addEventListener('input', () => { if (!slugEdited) slug.value = slugify(biz.value); });
+
+  document.getElementById('to-login').addEventListener('click', (e) => { e.preventDefault(); renderLogin(); });
+
+  document.getElementById('signup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('signup-btn');
+    const err = document.getElementById('signup-error');
+    err.textContent = '';
+    btn.disabled = true; btn.textContent = 'Creando…';
+    try {
+      await register({
+        businessName: biz.value.trim(),
+        slug: slugify(slug.value),
+        email: document.getElementById('su-email').value.trim(),
+        password: document.getElementById('su-pass').value,
+      });
+      renderDashboard();
+    } catch (ex) {
+      err.textContent = ex.message || 'No se pudo crear la cuenta';
+      btn.disabled = false; btn.textContent = 'Crear cuenta';
     }
   });
 }

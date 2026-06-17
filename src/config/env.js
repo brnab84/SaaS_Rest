@@ -20,4 +20,6 @@ export const env = {
   // Rol del proceso: 'api' (solo HTTP), 'worker' (solo cola) o 'all' (ambos en un proceso).
   // Permite un único start command para múltiples servicios en Railway.
   serviceRole: process.env.SERVICE_ROLE || 'api',
+  // Parámetro de admin: ¿se aceptan registros de comercios nuevos? (toggle desde Railway)
+  registrationOpen: process.env.REGISTRATION_OPEN !== 'false',
 };
