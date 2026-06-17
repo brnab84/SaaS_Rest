@@ -58,6 +58,11 @@ export const api = {
 
 export const me = () => request('/auth/me');
 
+export const tenantApi = {
+  get: () => request('/tenant'),
+  update: (b) => request('/tenant', { method: 'PATCH', body: b }),
+};
+
 export const productsApi = {
   list: () => request('/products'),
   create: (b) => request('/products', { method: 'POST', body: b }),

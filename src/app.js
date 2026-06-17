@@ -13,6 +13,7 @@ import productRoutes from './routes/products.js';
 import expenseRoutes from './routes/expenses.js';
 import campaignRoutes from './routes/campaigns.js';
 import dashboardRoutes from './routes/dashboard.js';
+import tenantRoutes from './routes/tenant.js';
 import publicRoutes from './routes/public.js';
 import webhookRoutes from './routes/webhooks.js';
 
@@ -59,6 +60,7 @@ export function createApp() {
   app.use('/api/expenses', apiLimiter, expenseRoutes);
   app.use('/api/campaigns', apiLimiter, campaignRoutes);
   app.use('/api/dashboard', apiLimiter, dashboardRoutes);
+  app.use('/api/tenant', apiLimiter, tenantRoutes);
   app.use('/api/public', apiLimiter, publicRoutes); // landing pública, sin auth
   app.use('/webhooks', webhookRoutes); // sin limiter: MP/Meta reintentan
 

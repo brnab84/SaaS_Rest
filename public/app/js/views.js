@@ -1,4 +1,4 @@
-import { api, me, productsApi, ordersApi, expensesApi, uploadExpenseOcr } from './api.js';
+import { api, me, tenantApi, productsApi, ordersApi, expensesApi, uploadExpenseOcr } from './api.js';
 import { money, num, esc, formModal, confirmDialog, toast, onInterval } from './ui.js';
 
 const CAT_ES = { supplies: 'Insumos', rent: 'Alquiler', salary: 'Sueldos', utilities: 'Servicios', other: 'Otros' };
@@ -211,7 +211,7 @@ export async function renderAjustes(host) {
   const storeUrl = `${location.origin}/r/${tenant.slug}`;
 
   host.innerHTML = `
-    <div class="view-head"><h1>Ajustes</h1></div>
+    <div class="view-head"><h1>Ajustes</h1><button class="btn btn-accent" id="edit-biz">Editar comercio</button></div>
     <div class="panel">
       <h2>Tu landing pública</h2>
       <p class="muted" style="margin:0 0 10px">La página donde tus clientes ven la carta y hacen pedidos. Compartila por WhatsApp o Instagram.</p>
@@ -238,4 +238,25 @@ export async function renderAjustes(host) {
     try { await navigator.clipboard.writeText(storeUrl); toast('Link copiado', 'success'); }
     catch { toast('Copiá el link de abajo', 'info'); }
   });
+
+  host.querySelector('#edit-biz')?.addEventListener('click', () => formModal({
+    title: 'Editar comercio',
+    submitLabel: 'Guardar',
+    fields: [
+      { name: 'name', label: 'Nombre del comercio', required: true, value: tenant.name },
+      { name: 'description', label: 'Descripción (aparece en tu landing)', type: 'textarea', value: tenant.branding?.description },
+      { name: 'accent', label: 'Color principal', type: 'color', value: tenant.branding?.colors?.accent || '#c0392b' },
+      { name: 'logo', label: 'Logo (URL de imagen)', value: tenant.branding?.logo, placeholder: 'https://…' },
+      { name: 'currency', label: 'Moneda', value: tenant.settings?.currency || 'ARS' },
+    ],
+    onSubmit: async (v) => {
+      await tenantApi.update({
+        name: v.name,
+        settings: { currency: v.currency },
+        branding: { description: v.description, logo: v.logo || '', colors: { accent: v.accent } },
+      });
+      toast('Comercio actualizado', 'success');
+      renderAjustes(host);
+    },
+  }));
 }

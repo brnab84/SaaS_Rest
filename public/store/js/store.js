@@ -17,6 +17,8 @@
       tenant = data.tenant; products = data.products || [];
       byId = Object.fromEntries(products.map((p) => [p._id, p]));
       if (tenant.currency) fmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: tenant.currency, maximumFractionDigits: 0 });
+      const accent = tenant.branding?.colors?.accent;
+      if (accent) document.documentElement.style.setProperty('--accent', accent);
       document.title = `${tenant.name} — Pedí online`;
       render();
     } catch { app.innerHTML = '<div class="center">No se pudo cargar el menú. Probá de nuevo.</div>'; }
@@ -25,7 +27,8 @@
   function totals() { let count = 0; let total = 0; for (const id in cart) { count += cart[id]; total += (byId[id]?.price || 0) * cart[id]; } return { count, total }; }
 
   function header() {
-    return `<header class="hero"><p class="eyebrow">Pedí online · Envíos hoy</p><h1>${esc(tenant.name)}</h1><p>${esc(tenant.branding?.description || 'Hacé tu pedido y te contactamos para coordinar.')}</p></header>`;
+    const logo = tenant.branding?.logo ? `<img class="logo" src="${esc(tenant.branding.logo)}" alt="${esc(tenant.name)}" />` : '';
+    return `<header class="hero">${logo}<p class="eyebrow">Pedí online · Envíos hoy</p><h1>${esc(tenant.name)}</h1><p>${esc(tenant.branding?.description || 'Hacé tu pedido y te contactamos para coordinar.')}</p></header>`;
   }
   function prodHTML(p) {
     const q = cart[p._id] || 0;
