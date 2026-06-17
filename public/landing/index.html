@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{TENANT_NAME}} — Pedí online</title>
+  <meta name="description" content="{{TENANT_DESCRIPTION}}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,900&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/landing.css" />
+</head>
+<body>
+  <!-- NAV -->
+  <header class="nav">
+    <a class="brand" href="#">{{TENANT_NAME}}</a>
+    <a class="nav__cta" href="#menu">Ver menú</a>
+  </header>
+
+  <!-- HERO: la firma es la "comanda" — el pedido como objeto físico -->
+  <section class="hero">
+    <div class="hero__copy">
+      <p class="eyebrow">Cocina de barrio · Envíos hoy</p>
+      <h1 class="hero__title">Lo que pedís,<br><em>recién hecho.</em></h1>
+      <p class="hero__sub">{{TENANT_DESCRIPTION}}</p>
+      <div class="hero__actions">
+        <a href="#menu" class="btn btn--primary">Armar mi pedido</a>
+        <a href="https://wa.me/{{TENANT_WA}}" class="btn btn--ghost">Pedir por WhatsApp</a>
+      </div>
+    </div>
+    <aside class="ticket" aria-hidden="true">
+      <div class="ticket__head"><span>COMANDA</span><span>#0421</span></div>
+      <ul class="ticket__items">
+        <li><span>2×</span> Milanesa napolitana</li>
+        <li><span>1×</span> Papas cheddar</li>
+        <li><span>2×</span> Limonada de menta</li>
+      </ul>
+      <div class="ticket__total"><span>Total</span><strong>$12.400</strong></div>
+      <div class="ticket__stamp">EN MARCHA</div>
+    </aside>
+  </section>
+
+  <!-- MENU -->
+  <section class="menu" id="menu">
+    <div class="menu__head">
+      <h2>El menú</h2>
+      <p>Tocá un plato para sumarlo. Te lo enviamos al WhatsApp para confirmar.</p>
+    </div>
+    <div class="menu__grid" id="menuGrid"><!-- Claude Code: render dinámico por tenant --></div>
+  </section>
+
+  <!-- CARRITO FLOTANTE -->
+  <div class="cart" id="cart" hidden>
+    <div class="cart__info"><strong id="cartCount">0</strong> ítems · <span id="cartTotal">$0</span></div>
+    <button class="btn btn--primary" id="cartSend">Enviar pedido</button>
+  </div>
+
+  <footer class="foot">
+    <p>{{TENANT_NAME}} · Pedidos por WhatsApp e Instagram</p>
+    <p class="foot__powered">Hecho con RestaurApp</p>
+  </footer>
+
+  <script src="/js/landing.js"></script>
+</body>
+</html>
