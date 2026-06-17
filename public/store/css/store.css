@@ -1,0 +1,64 @@
+:root {
+  --bg: #f3ecd9; --surface: #fffdf6; --surface-2: #f7f1e1;
+  --text: #2b2520; --muted: #8a7b58; --accent: #c0392b; --green: #1d7a5f;
+  --border: #e0d6bf; --radius: 14px;
+  --sans: 'Space Grotesk', system-ui, sans-serif; --serif: 'Fraunces', Georgia, serif;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.5; -webkit-tap-highlight-color: transparent; }
+.loading, .center { min-height: 70vh; display: flex; align-items: center; justify-content: center; color: var(--muted); padding: 24px; text-align: center; }
+
+.wrap { max-width: 720px; margin: 0 auto; padding: 0 16px calc(110px + env(safe-area-inset-bottom)); }
+
+.hero { padding: calc(28px + env(safe-area-inset-top)) 16px 22px; text-align: center; }
+.hero .eyebrow { font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.hero h1 { font-family: var(--serif); font-weight: 700; font-size: 30px; margin: 6px 0 4px; }
+.hero p { color: var(--muted); margin: 0; font-size: 14px; }
+
+.cat { font-family: var(--serif); font-weight: 600; font-size: 20px; margin: 22px 0 10px; }
+.prod {
+  display: flex; gap: 12px; align-items: center; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+}
+.prod .info { flex: 1; min-width: 0; }
+.prod .name { font-weight: 700; font-size: 15px; }
+.prod .desc { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.prod .price { font-family: var(--serif); font-weight: 600; font-size: 16px; white-space: nowrap; }
+
+.stepper { display: flex; align-items: center; gap: 10px; }
+.qbtn {
+  width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid var(--accent); background: var(--surface);
+  color: var(--accent); font-size: 20px; font-weight: 700; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.qbtn.add { background: var(--accent); color: #fff; }
+.qty { min-width: 18px; text-align: center; font-weight: 700; }
+
+.cartbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: var(--accent); color: #fff;
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); display: none;
+  align-items: center; justify-content: space-between; gap: 12px; cursor: pointer;
+}
+.cartbar.show { display: flex; }
+.cartbar .c-count { font-weight: 700; }
+.cartbar .c-go { font-weight: 700; background: #fff; color: var(--accent); padding: 9px 16px; border-radius: 20px; }
+
+.sheet-ov { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; display: none; align-items: flex-end; justify-content: center; }
+.sheet-ov.show { display: flex; }
+.sheet { width: 100%; max-width: 720px; background: var(--bg); border-radius: 20px 20px 0 0; max-height: 92vh; overflow: auto; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
+.sheet h2 { font-family: var(--serif); font-size: 22px; margin: 0 0 12px; }
+.line { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 14px; }
+.line.total { border-bottom: none; font-weight: 700; font-size: 16px; padding-top: 12px; }
+.field { margin-top: 12px; }
+.field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+.input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; font-size: 16px; font-family: var(--sans); color: var(--text); }
+.btn { width: 100%; border: none; border-radius: 12px; padding: 14px; font-size: 16px; font-weight: 700; cursor: pointer; font-family: var(--sans); margin-top: 16px; min-height: 50px; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); margin-top: 8px; }
+.err { color: var(--accent); font-size: 13px; margin-top: 10px; min-height: 16px; }
+
+.ok { text-align: center; padding: 30px 16px; }
+.ok .check { width: 64px; height: 64px; border-radius: 50%; background: var(--green); color: #fff; font-size: 32px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+.ok h2 { font-family: var(--serif); font-size: 24px; margin: 0 0 6px; }
+.ok .code { font-family: var(--serif); font-weight: 700; font-size: 34px; color: var(--accent); margin: 10px 0; letter-spacing: 0.05em; }
+.foot { text-align: center; color: var(--muted); font-size: 12px; padding: 24px 0; }

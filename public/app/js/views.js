@@ -1,5 +1,5 @@
 import { api, me, productsApi, ordersApi, expensesApi, uploadExpenseOcr } from './api.js';
-import { money, num, esc, formModal, confirmDialog, toast } from './ui.js';
+import { money, num, esc, formModal, confirmDialog, toast, onInterval } from './ui.js';
 
 const CAT_ES = { supplies: 'Insumos', rent: 'Alquiler', salary: 'Sueldos', utilities: 'Servicios', other: 'Otros' };
 const EXP_CATS = Object.entries(CAT_ES).map(([value, label]) => ({ value, label }));
@@ -77,6 +77,7 @@ export async function renderMenu(host) {
     fields: [
       { name: 'name', label: 'Nombre', required: true },
       { name: 'price', label: 'Precio', type: 'number', step: '0.01', min: 0, required: true },
+      { name: 'cost', label: 'Costo (opcional)', type: 'number', step: '0.01', min: 0, help: 'Para calcular tu margen' },
       { name: 'category', label: 'Categoría', placeholder: 'Ej. Pizzas, Bebidas' },
       { name: 'description', label: 'Descripción', type: 'textarea' },
       { name: 'available', label: 'Disponible', type: 'checkbox' },
@@ -92,6 +93,7 @@ export async function renderMenu(host) {
         <div class="li-main">
           <div class="li-title">${esc(p.name)} ${p.available === false ? '<span class="badge badge-muted">No disponible</span>' : ''}</div>
           <div class="li-sub">${esc(p.category || 'Sin categoría')}${p.description ? ' · ' + esc(p.description) : ''}</div>
+          ${p.cost && p.price > 0 ? `<div class="li-sub">Costo ${money.format(p.cost)} · Margen ${money.format(p.price - p.cost)} (${Math.round((1 - p.cost / p.price) * 100)}%)</div>` : ''}
         </div>
         <div class="li-amt">${money.format(p.price)}</div>
         <div class="li-actions">
@@ -116,7 +118,7 @@ export async function renderPedidos(host) {
   const reload = () => renderPedidos(host);
 
   host.innerHTML = `
-    <div class="view-head"><h1>Pedidos</h1><button class="btn btn-sm" id="refresh">Actualizar</button></div>
+    <div class="view-head"><h1>Pedidos</h1><div style="display:flex;gap:10px;align-items:center"><span class="live">● En vivo</span><button class="btn btn-sm" id="refresh">Actualizar</button></div></div>
     ${!items.length ? '<div class="panel"><div class="empty">No hay pedidos activos. Los pedidos de la landing, WhatsApp y delivery aparecen acá.</div></div>'
     : `<div class="list">${items.map((o) => {
       const next = nextStatus(o.status);
@@ -141,6 +143,9 @@ export async function renderPedidos(host) {
   host.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', async () => {
     if (await confirmDialog('¿Cancelar este pedido?')) { await ordersApi.setStatus(b.dataset.cancel, 'cancelled'); toast('Pedido cancelado', 'success'); reload(); }
   }));
+
+  // Auto-refresco mientras la pestaña esté visible (cocina en vivo).
+  onInterval(() => { if (document.visibilityState === 'visible' && document.body.contains(host)) renderPedidos(host); }, 20000);
 }
 
 /* ===================== GASTOS ===================== */
@@ -203,10 +208,19 @@ export async function renderAjustes(host) {
   let data;
   try { data = await me(); } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const { tenant, user } = data;
-  const menuUrl = `${location.origin}/api/public/${tenant.slug}/menu`;
+  const storeUrl = `${location.origin}/r/${tenant.slug}`;
 
   host.innerHTML = `
     <div class="view-head"><h1>Ajustes</h1></div>
+    <div class="panel">
+      <h2>Tu landing pública</h2>
+      <p class="muted" style="margin:0 0 10px">La página donde tus clientes ven la carta y hacen pedidos. Compartila por WhatsApp o Instagram.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a class="btn btn-sm btn-accent" href="${esc(storeUrl)}" target="_blank" rel="noopener">Ver mi landing ↗</a>
+        <button class="btn btn-sm" id="copy-link">Copiar link</button>
+      </div>
+      <div class="mono" style="font-size:12px;color:var(--text-muted);margin-top:8px;word-break:break-all">${esc(storeUrl)}</div>
+    </div>
     <div class="panel">
       <h2>Comercio</h2>
       <div class="kv"><span>Nombre</span><strong>${esc(tenant.name)}</strong></div>
@@ -218,10 +232,10 @@ export async function renderAjustes(host) {
       <h2>Usuario</h2>
       <div class="kv"><span>Email</span><strong>${esc(user.email)}</strong></div>
       <div class="kv"><span>Rol</span><strong>${esc(user.role)}</strong></div>
-    </div>
-    <div class="panel">
-      <h2>Menú público</h2>
-      <p class="muted" style="margin:0 0 10px">Endpoint del menú de tu comercio (la landing visual por slug llega en una próxima fase).</p>
-      <a class="btn btn-sm" href="${esc(menuUrl)}" target="_blank" rel="noopener">Ver menú público (JSON)</a>
     </div>`;
+
+  host.querySelector('#copy-link')?.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(storeUrl); toast('Link copiado', 'success'); }
+    catch { toast('Copiá el link de abajo', 'info'); }
+  });
 }

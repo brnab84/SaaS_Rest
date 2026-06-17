@@ -175,6 +175,7 @@ button { font-family: var(--font); cursor: pointer; }
 .st-new { color: var(--accent); }
 .st-ready, .st-delivered { color: var(--success); }
 .st-cancelled { color: var(--danger); }
+.live { font-size: 12px; font-weight: 700; color: var(--success); white-space: nowrap; }
 
 /* ===== botones extra ===== */
 .btn-sm { padding: 7px 12px; font-size: 13px; min-height: 38px; }

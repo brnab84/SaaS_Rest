@@ -1,3 +1,8 @@
+// Timers de la vista activa: el router los limpia al cambiar de sección (clearTimers).
+let _timers = [];
+export function onInterval(fn, ms) { const id = setInterval(fn, ms); _timers.push(id); return id; }
+export function clearTimers() { _timers.forEach(clearInterval); _timers = []; }
+
 export const money = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
 export const num = new Intl.NumberFormat('es-AR');
 export const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

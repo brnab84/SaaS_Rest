@@ -1,6 +1,7 @@
 import { applyTheme, getTheme, renderThemePicker } from './themes.js';
 import { login, register, getAuthConfig, logout, isAuthed } from './api.js';
 import { renderResumen, renderMenu, renderPedidos, renderGastos, renderAjustes } from './views.js';
+import { clearTimers } from './ui.js';
 
 const root = document.getElementById('root');
 
@@ -60,13 +61,14 @@ function renderApp() {
       <nav class="bottom-nav">${tabs('bnav')}</nav>
     </div>`;
   mountPicker();
-  document.getElementById('logout').addEventListener('click', () => { logout(); location.hash = ''; renderLogin(); });
+  document.getElementById('logout').addEventListener('click', () => { clearTimers(); logout(); location.hash = ''; renderLogin(); });
   onRoute();
 }
 
 function onRoute() {
   if (!isAuthed()) { renderLogin(); return; }
   if (!document.getElementById('view')) { renderApp(); return; }
+  clearTimers(); // detener auto-refresco de la vista anterior
   const id = currentRoute();
   document.querySelectorAll('[data-nav]').forEach((a) => a.setAttribute('aria-current', a.dataset.nav === id ? 'page' : 'false'));
   const entry = NAV.find((n) => n.id === id);

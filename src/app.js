@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'node:path';
 import helmet from 'helmet';
 import cors from 'cors';
 import pkg from '../package.json' with { type: 'json' };
@@ -61,7 +62,10 @@ export function createApp() {
   app.use('/api/public', apiLimiter, publicRoutes); // landing pública, sin auth
   app.use('/webhooks', webhookRoutes); // sin limiter: MP/Meta reintentan
 
-  // Landing pública estática (servida por slug) — Claude Code: implementar render por tenant
+  // Storefront público por slug: una misma SPA para /r/:slug; el cliente JS resuelve el slug.
+  app.get('/r/:slug', (_req, res) => res.sendFile(path.join(process.cwd(), 'public', 'store', 'index.html')));
+
+  // Estáticos: panel (/app), storefront (/store), landing y assets.
   app.use(express.static('public'));
 
   app.use(errorHandler);
