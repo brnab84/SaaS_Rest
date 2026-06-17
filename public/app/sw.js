@@ -1,11 +1,11 @@
 // Service worker network-first: siempre intenta la red (así ves cada deploy al instante)
 // y usa el cache solo como respaldo offline. La versión del cache se bumpea con la app.
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const CACHE = `restaurapp-${VERSION}`;
 const ASSETS = [
   './', './index.html',
   './css/themes.css', './css/app.css',
-  './js/app.js', './js/api.js', './js/themes.js', './js/boot.js',
+  './js/app.js', './js/api.js', './js/themes.js', './js/boot.js', './js/ui.js', './js/views.js',
   './manifest.webmanifest', './icon.svg',
 ];
 

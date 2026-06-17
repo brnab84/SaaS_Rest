@@ -3,11 +3,24 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { env } from '../config/env.js';
 import { validate } from '../middleware/validate.js';
+import { requireAuth } from '../middleware/auth.js';
 import { Tenant } from '../models/Tenant.js';
 import { User } from '../models/User.js';
-import { unauthorized, badRequest, forbidden } from '../utils/errors.js';
+import { unauthorized, badRequest, forbidden, notFound } from '../utils/errors.js';
 
 const router = Router();
+
+// Datos del usuario logueado + su comercio (para el panel y Ajustes).
+router.get('/me', requireAuth, async (req, res, next) => {
+  try {
+    const [user, tenant] = await Promise.all([
+      User.findById(req.auth.userId).select('email role'),
+      Tenant.findById(req.auth.tenantId).select('name slug plan settings.currency branding'),
+    ]);
+    if (!tenant) return next(notFound('Comercio no encontrado'));
+    res.json({ user, tenant });
+  } catch (e) { next(e); }
+});
 
 // Config pública: el frontend la consulta para mostrar/ocultar "crear cuenta".
 router.get('/config', (_req, res) => {

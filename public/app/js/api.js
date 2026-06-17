@@ -55,3 +55,39 @@ export const api = {
   products: (q = '') => request(`/dashboard/products${q}`),
   forecast: (days = 7) => request(`/dashboard/forecast?days=${days}`),
 };
+
+export const me = () => request('/auth/me');
+
+export const productsApi = {
+  list: () => request('/products'),
+  create: (b) => request('/products', { method: 'POST', body: b }),
+  update: (id, b) => request(`/products/${id}`, { method: 'PATCH', body: b }),
+  remove: (id) => request(`/products/${id}`, { method: 'DELETE' }),
+};
+
+export const ordersApi = {
+  list: (status) => request(`/orders${status ? `?status=${status}` : ''}`),
+  setStatus: (id, status) => request(`/orders/${id}/status`, { method: 'PATCH', body: { status } }),
+};
+
+export const expensesApi = {
+  list: () => request('/expenses'),
+  create: (b) => request('/expenses', { method: 'POST', body: b }),
+  remove: (id) => request(`/expenses/${id}`, { method: 'DELETE' }),
+};
+
+// Subida multipart de la foto de factura para OCR.
+export async function uploadExpenseOcr(file) {
+  const fd = new FormData();
+  fd.append('photo', file);
+  const token = getToken();
+  const res = await fetch('/api/expenses/ocr', {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  });
+  if (res.status === 401) { logout(); throw new ApiError('Sesión expirada', 401); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(data?.error?.message || 'No se pudo procesar la foto', res.status);
+  return data;
+}
