@@ -7,6 +7,11 @@ import { logger } from './utils/logger.js';
 import { errorHandler } from './middleware/validate.js';
 import authRoutes from './routes/auth.js';
 import orderRoutes from './routes/orders.js';
+import productRoutes from './routes/products.js';
+import expenseRoutes from './routes/expenses.js';
+import campaignRoutes from './routes/campaigns.js';
+import dashboardRoutes from './routes/dashboard.js';
+import publicRoutes from './routes/public.js';
 import webhookRoutes from './routes/webhooks.js';
 
 export function createApp() {
@@ -28,6 +33,11 @@ export function createApp() {
 
   app.use('/api/auth', authLimiter, authRoutes);
   app.use('/api/orders', apiLimiter, orderRoutes);
+  app.use('/api/products', apiLimiter, productRoutes);
+  app.use('/api/expenses', apiLimiter, expenseRoutes);
+  app.use('/api/campaigns', apiLimiter, campaignRoutes);
+  app.use('/api/dashboard', apiLimiter, dashboardRoutes);
+  app.use('/api/public', apiLimiter, publicRoutes); // landing pública, sin auth
   app.use('/webhooks', webhookRoutes); // sin limiter: MP/Meta reintentan
 
   // Landing pública estática (servida por slug) — Claude Code: implementar render por tenant

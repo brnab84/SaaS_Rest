@@ -16,7 +16,8 @@ export async function createPaymentLink({ accessToken, order, amount }) {
         currency_id: 'ARS',
       }],
       external_reference: order._id.toString(), // reconciliación
-      notification_url: `${env.appBaseUrl}/webhooks/mp`,
+      // tenant en la URL: el webhook resuelve el secret de firma del comercio correcto
+      notification_url: `${env.appBaseUrl}/webhooks/mp/${order.tenantId}`,
       back_urls: {
         success: `${env.appBaseUrl}/pago/ok`,
         failure: `${env.appBaseUrl}/pago/error`,

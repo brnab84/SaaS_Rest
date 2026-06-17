@@ -16,4 +16,5 @@ export const env = {
   wa: { verifyToken: process.env.WA_VERIFY_TOKEN, appSecret: process.env.WA_APP_SECRET },
   anthropicKey: process.env.ANTHROPIC_API_KEY,
   peya: { clientId: process.env.PEYA_CLIENT_ID, clientSecret: process.env.PEYA_CLIENT_SECRET },
+  workerPollMs: Number(process.env.WORKER_POLL_MS) || 2000,
 };

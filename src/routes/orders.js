@@ -7,6 +7,7 @@ import { Tenant } from '../models/Tenant.js';
 import { createPaymentLink } from '../services/mercadopago.js';
 import { sendText } from '../services/whatsapp.js';
 import { notFound } from '../utils/errors.js';
+import { resolveSecret } from '../utils/secrets.js';
 import { env } from '../config/env.js';
 
 const router = Router();
@@ -78,8 +79,5 @@ async function notifyCustomer(tenantId, order) {
     to: order.customer.phone, body: `${msg} (Pedido ${order.code})`,
   });
 }
-
-// TODO Claude Code: resolver tokenRef contra el store de secrets real
-function resolveSecret(ref) { return ref ? process.env[ref] : null; }
 
 export default router;

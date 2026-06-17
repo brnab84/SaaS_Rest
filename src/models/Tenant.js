@@ -9,7 +9,7 @@ const tenantSchema = new Schema({
     // tokenRef = clave a un secret externo (Railway env / vault), nunca el token en claro
     whatsapp: { phoneId: String, wabaId: String, tokenRef: String },
     instagram: { igUserId: String, tokenRef: String },
-    mercadopago: { tokenRef: String, publicKey: String },
+    mercadopago: { tokenRef: String, webhookSecretRef: String, publicKey: String },
     pedidosya: { vendorId: String, integrationActive: { type: Boolean, default: false } },
   },
   branding: { logo: String, colors: { type: Map, of: String }, description: String },

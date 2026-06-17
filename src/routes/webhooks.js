@@ -1,36 +1,37 @@
 import { Router } from 'express';
-import crypto from 'node:crypto';
 import { env } from '../config/env.js';
-import { Order } from '../models/Order.js';
 import { Tenant } from '../models/Tenant.js';
-import { getPayment } from '../services/mercadopago.js';
+import { resolveSecret } from '../utils/secrets.js';
+import { verifyMpSignature, verifyMetaSignature } from '../utils/signatures.js';
+import { enqueueJob } from '../jobs/queue.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
 
-// --- Mercado Pago: confirmación de pago ---
-router.post('/mp', async (req, res) => {
-  res.sendStatus(200); // responder rápido SIEMPRE para evitar reintentos
+// --- Mercado Pago: confirmación de pago (por tenant en la URL) ---
+router.post('/mp/:tenantId', async (req, res) => {
+  const tenant = await Tenant.findById(req.params.tenantId).catch(() => null);
+  if (!tenant) return res.sendStatus(404);
+
+  const secret = resolveSecret(tenant.settings?.mercadopago?.webhookSecretRef) || env.mp.webhookSecret;
+  if (secret) {
+    const ok = verifyMpSignature({
+      signatureHeader: req.headers['x-signature'],
+      requestId: req.headers['x-request-id'],
+      dataId: req.query['data.id'] ?? req.body?.data?.id,
+      secret,
+    });
+    if (!ok) return res.sendStatus(401);
+  }
+
+  // Encolar (insert rápido, durable) y recién después confirmar: el worker procesa async.
   try {
     const { type, data } = req.body;
-    if (type !== 'payment') return;
-    // TODO Claude Code: validar firma x-signature según tenant
-    const order = await Order.findById(undefined); // placeholder, ver abajo
-    const accessToken = env.mp.accessToken;
-    const pay = await getPayment({ accessToken, paymentId: data.id });
-    const target = await Order.findById(pay.external_reference);
-    if (!target) return;
-
-    // Idempotencia: ignorar si ya procesamos este paymentId
-    if (target.payment.mpPaymentId === String(pay.id) && target.payment.status === 'paid') return;
-
-    if (pay.status === 'approved') {
-      target.payment.mpPaymentId = String(pay.id);
-      target.payment.amountPaid += pay.transaction_amount;
-      target.payment.status = target.payment.amountPaid >= target.total ? 'paid' : 'partial';
-      await target.save();
+    if (type === 'payment' && data?.id) {
+      await enqueueJob('mp_payment', { tenantId: tenant._id.toString(), paymentId: String(data.id) });
     }
-  } catch (e) { logger.error({ e }, 'Webhook MP error'); }
+  } catch (e) { logger.error({ e }, 'Webhook MP: fallo al encolar'); }
+  res.sendStatus(200);
 });
 
 // --- WhatsApp: verificación (GET) + mensajes entrantes (POST) ---
@@ -43,25 +44,23 @@ router.get('/wa', (req, res) => {
   res.sendStatus(403);
 });
 
-router.post('/wa', verifyMetaSignature, async (req, res) => {
-  res.sendStatus(200);
+router.post('/wa', metaSignatureGuard, async (req, res) => {
   try {
     const value = req.body.entry?.[0]?.changes?.[0]?.value;
-    const msg = value?.messages?.[0];
-    if (!msg) return;
-    // TODO Claude Code: resolver tenant por value.metadata.phone_number_id,
-    // parsear el mensaje y crear/actualizar Order (channel: 'whatsapp')
-    logger.info({ from: msg.from }, 'Mensaje WA entrante');
-  } catch (e) { logger.error({ e }, 'Webhook WA error'); }
+    if (value?.messages?.[0]) { // ignorar statuses u otros eventos sin mensaje
+      await enqueueJob('wa_message', { value });
+    }
+  } catch (e) { logger.error({ e }, 'Webhook WA: fallo al encolar'); }
+  res.sendStatus(200);
 });
 
-// Valida firma HMAC de Meta
-function verifyMetaSignature(req, res, next) {
+// Middleware: exige firma válida de Meta cuando hay app secret configurado (en dev sin secret pasa).
+function metaSignatureGuard(req, res, next) {
   const sig = req.headers['x-hub-signature-256'];
-  if (!env.wa.appSecret || !sig || !req.rawBody) return next(); // dev sin secret
-  const expected = 'sha256=' + crypto.createHmac('sha256', env.wa.appSecret)
-    .update(req.rawBody).digest('hex');
-  if (sig !== expected) return res.sendStatus(401);
+  if (!env.wa.appSecret || !sig || !req.rawBody) return next();
+  if (!verifyMetaSignature({ signatureHeader: sig, rawBody: req.rawBody, appSecret: env.wa.appSecret })) {
+    return res.sendStatus(401);
+  }
   next();
 }
 
