@@ -20,17 +20,22 @@ export function applyTheme(id) {
   try { localStorage.setItem(KEY, id); } catch {}
 }
 
-// Renderiza los swatches de selección dentro de `container`.
+// Renderiza el selector: nombre del tema arriba + los 6 swatches en una sola fila.
 export function renderThemePicker(container) {
   const current = getTheme();
+  const currentName = THEMES.find((t) => t.id === current)?.name || '';
   container.innerHTML = '';
+
   const wrap = document.createElement('div');
   wrap.className = 'theme-picker';
-  const label = document.createElement('span');
+
+  const label = document.createElement('div');
   label.className = 'theme-name';
-  label.textContent = THEMES.find((t) => t.id === current)?.name || '';
+  label.innerHTML = `Tema · <strong>${currentName}</strong>`;
   wrap.appendChild(label);
 
+  const row = document.createElement('div');
+  row.className = 'theme-swatches';
   for (const t of THEMES) {
     const b = document.createElement('button');
     b.className = 'swatch';
@@ -46,7 +51,8 @@ export function renderThemePicker(container) {
       applyTheme(t.id);
       renderThemePicker(container); // refresca estado seleccionado + nombre
     });
-    wrap.appendChild(b);
+    row.appendChild(b);
   }
+  wrap.appendChild(row);
   container.appendChild(wrap);
 }

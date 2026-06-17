@@ -21,6 +21,22 @@ function route() {
 function mountPicker() {
   const slot = document.getElementById('theme-slot');
   if (slot) renderThemePicker(slot);
+  renderVersion();
+}
+
+// Footer de versión: semver (package.json) + commit de git, vía /api/version.
+async function renderVersion() {
+  let txt = '';
+  try {
+    const r = await fetch('/api/version');
+    const v = await r.json();
+    txt = `v${v.version} · ${v.commit}`;
+  } catch {}
+  const host = document.querySelector('.login') || document.querySelector('.app');
+  if (!host) return;
+  let el = host.querySelector('.app-version');
+  if (!el) { el = document.createElement('div'); el.className = 'app-version'; host.appendChild(el); }
+  el.textContent = txt;
 }
 
 /* ---------- Login ---------- */

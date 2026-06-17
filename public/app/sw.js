@@ -1,5 +1,7 @@
-// Service worker: cachea el shell de la app (offline básico). La API nunca se cachea.
-const CACHE = 'restaurapp-v1';
+// Service worker network-first: siempre intenta la red (así ves cada deploy al instante)
+// y usa el cache solo como respaldo offline. La versión del cache se bumpea con la app.
+const VERSION = '0.2.0';
+const CACHE = `restaurapp-${VERSION}`;
 const ASSETS = [
   './', './index.html',
   './css/themes.css', './css/app.css',
@@ -21,16 +23,17 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET') return;                 // no tocar POST/PATCH
-  if (url.origin !== location.origin) return;             // no tocar fuentes externas
-  if (url.pathname.startsWith('/api')) return;            // datos siempre frescos
-  if (!url.pathname.startsWith('/app')) return;           // solo el scope de la app
+  if (e.request.method !== 'GET' || url.origin !== location.origin) return;
+  if (url.pathname.startsWith('/api')) return;       // datos siempre frescos
+  if (!url.pathname.startsWith('/app')) return;      // solo el scope de la app
 
   e.respondWith(
-    caches.match(e.request).then((cached) => cached || fetch(e.request).then((resp) => {
-      const copy = resp.clone();
-      caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
-      return resp;
-    }).catch(() => caches.match('./index.html'))),
+    fetch(e.request)
+      .then((resp) => {
+        const copy = resp.clone();
+        caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
+        return resp;
+      })
+      .catch(() => caches.match(e.request).then((c) => c || caches.match('./index.html'))),
   );
 });

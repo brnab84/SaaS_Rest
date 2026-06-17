@@ -1,6 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import pkg from '../package.json' with { type: 'json' };
 import rateLimit from 'express-rate-limit';
 import pinoHttp from 'pino-http';
 import { logger } from './utils/logger.js';
@@ -43,6 +44,13 @@ export function createApp() {
   const authLimiter = rateLimit({ windowMs: 60_000, max: 10 });
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
+
+  // Versión: semver de package.json + commit de git (Railway lo inyecta en el deploy).
+  app.get('/api/version', (_req, res) => res.json({
+    name: pkg.name,
+    version: pkg.version,
+    commit: (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7) || 'dev',
+  }));
 
   app.use('/api/auth', authLimiter, authRoutes);
   app.use('/api/orders', apiLimiter, orderRoutes);
