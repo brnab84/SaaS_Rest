@@ -548,6 +548,8 @@ export async function renderAjustes(host) {
   const coverUrl = tenant.branding?.cover;
   const cats = tenant.settings?.categories || [];
   const om = tenant.settings?.orderMessages || {};
+  const wlAllowed = tenant.whitelabelAllowed === true; // ¿el plan habilita marca blanca?
+  const wlOn = tenant.settings?.whitelabel !== false;
   // Plan y uso (Infinity llega como null = sin límite)
   const planId = usage?.plan || tenant.plan || 'free';
   const plans = usage?.plans || {};
@@ -608,6 +610,11 @@ export async function renderAjustes(host) {
         <button class="btn btn-accent" id="add-cat">Agregar</button>
       </div>
     </div>
+    ${wlAllowed ? `<div class="panel">
+      <h2>Marca</h2>
+      <p class="muted" style="margin:0 0 12px">Tu plan incluye <strong>marca blanca</strong>: podés ocultar "RestaurApp" y mostrar tu logo y nombre en el panel y en tu landing. (El logo se carga en "Logo y portada".)</p>
+      <label class="field-check"><input type="checkbox" id="wl-toggle" ${wlOn ? 'checked' : ''}/> Usar mi marca (ocultar "RestaurApp")</label>
+    </div>` : ''}
     <div class="panel">
       <h2>Notificaciones de pedidos</h2>
       <p class="muted" style="margin:0 0 12px">Cuando entra un pedido nuevo, la app suena y te avisa (tené la sección <strong>Pedidos</strong> abierta). Elegí el tono.</p>
@@ -751,6 +758,11 @@ export async function renderAjustes(host) {
 
   host.querySelector('#allow-cancel')?.addEventListener('change', async (e) => {
     try { await tenantApi.update({ settings: { allowCancel: e.target.checked } }); toast(e.target.checked ? 'Cancelación habilitada' : 'Cancelación deshabilitada', 'success'); }
+    catch (ex) { toast(ex.message || 'No se pudo guardar', 'error'); e.target.checked = !e.target.checked; }
+  });
+
+  host.querySelector('#wl-toggle')?.addEventListener('change', async (e) => {
+    try { await tenantApi.update({ settings: { whitelabel: e.target.checked } }); toast('Marca actualizada · recargá para verla en el topbar', 'success'); }
     catch (ex) { toast(ex.message || 'No se pudo guardar', 'error'); e.target.checked = !e.target.checked; }
   });
 
@@ -948,6 +960,7 @@ export async function renderAdmin(host) {
           <select class="input" data-plan-for="${t.id}" style="width:auto;min-height:38px;padding:6px 10px">
             ${planOpts.map((p) => `<option value="${p}" ${p === t.plan ? 'selected' : ''}>${esc(plans[p].label)}</option>`).join('')}
           </select>
+          <button class="btn btn-sm btn-danger" data-del-tenant="${t.id}" data-name="${esc(t.name)}">Eliminar</button>
         </div>
       </div>`).join('')}</div>`}`;
 
@@ -968,6 +981,13 @@ export async function renderAdmin(host) {
     };
     try { await adminApi.setPlanConfig(id, body); toast(`Plan ${body.label} guardado`, 'success'); reload(); }
     catch (ex) { toast(ex.message || 'No se pudo guardar el plan', 'error'); }
+  }));
+
+  host.querySelectorAll('[data-del-tenant]').forEach((b) => b.addEventListener('click', async () => {
+    const name = b.dataset.name || 'este comercio';
+    if (!(await confirmDialog(`¿Eliminar "${name}" y TODOS sus datos (menú, pedidos, gastos, usuarios)? Esta acción es irreversible.`))) return;
+    try { await adminApi.deleteTenant(b.dataset.delTenant); toast('Comercio eliminado', 'success'); reload(); }
+    catch (ex) { toast(ex.message || 'No se pudo eliminar', 'error'); }
   }));
 
   host.querySelectorAll('[data-tenant]').forEach((b) => b.addEventListener('click', async () => {

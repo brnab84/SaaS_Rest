@@ -35,7 +35,7 @@ router.get('/:slug/menu', resolveTenant, async (req, res, next) => {
         currency: req.tenant.settings?.currency || 'ARS',
         storeOpen: req.tenant.settings?.storeOpen !== false,
         allowCancel: req.tenant.settings?.allowCancel !== false,
-        whitelabel: getPlan(req.tenant.plan).features?.whitelabel === true, // ¿oculta marca RestaurApp?
+        whitelabel: getPlan(req.tenant.plan).features?.whitelabel === true && req.tenant.settings?.whitelabel !== false, // ¿oculta marca RestaurApp?
         branding: req.tenant.branding || {},
       },
       products,

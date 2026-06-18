@@ -21,8 +21,8 @@ router.get('/me', requireAuth, async (req, res, next) => {
     if (!tenant) return next(notFound('Comercio no encontrado'));
     // isRoot: ¿esta cuenta es el dueño de la app? Habilita el panel de administración.
     const isRoot = !!user && user.email.toLowerCase() === env.rootEmail;
-    // whitelabel: ¿el plan permite marca propia (ocultar "RestaurApp")?
-    const whitelabel = getPlan(tenant.plan).features?.whitelabel === true;
+    // whitelabel efectivo: el plan lo permite Y el comercio lo dejó activado.
+    const whitelabel = getPlan(tenant.plan).features?.whitelabel === true && tenant.settings?.whitelabel !== false;
     res.json({ user: { ...user.toJSON(), isRoot }, tenant: { ...tenant.toJSON(), whitelabel } });
   } catch (e) { next(e); }
 });

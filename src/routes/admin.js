@@ -11,7 +11,7 @@ import { Expense } from '../models/Expense.js';
 import { Campaign } from '../models/Campaign.js';
 import { PlanConfig } from '../models/PlanConfig.js';
 import { allPlans, getPlan, refreshPlans, PLAN_IDS } from '../config/plans.js';
-import { notFound } from '../utils/errors.js';
+import { notFound, badRequest } from '../utils/errors.js';
 
 const router = Router();
 router.use(requireAuth, requireRoot);
@@ -125,6 +125,27 @@ router.patch('/tenants/:id/plan', validate(planSchema), async (req, res, next) =
     const t = await Tenant.findByIdAndUpdate(req.params.id, { $set: { plan: req.body.plan } }, { new: true });
     if (!t) return next(notFound('Comercio no encontrado'));
     res.json({ id: String(t._id), plan: t.plan });
+  } catch (e) { next(e); }
+});
+
+// Borrar un comercio y TODOS sus datos (irreversible). No permite borrar el propio.
+router.delete('/tenants/:id', async (req, res, next) => {
+  try {
+    if (String(req.params.id) === String(req.auth.tenantId)) {
+      return next(badRequest('No podés borrar tu propio comercio desde el panel.'));
+    }
+    const t = await Tenant.findById(req.params.id);
+    if (!t) return next(notFound('Comercio no encontrado'));
+    const tid = t._id;
+    await Promise.all([
+      User.deleteMany({ tenantId: tid }),
+      Product.deleteMany({ tenantId: tid }),
+      Order.deleteMany({ tenantId: tid }),
+      Expense.deleteMany({ tenantId: tid }),
+      Campaign.deleteMany({ tenantId: tid }),
+    ]);
+    await Tenant.deleteOne({ _id: tid });
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 

@@ -85,6 +85,7 @@ export const adminApi = {
   setPlan: (id, plan) => request(`/admin/tenants/${id}/plan`, { method: 'PATCH', body: { plan } }),
   tenantDetail: (id) => request(`/admin/tenants/${id}`),
   setPlanConfig: (id, body) => request(`/admin/plans/${id}`, { method: 'PATCH', body }),
+  deleteTenant: (id) => request(`/admin/tenants/${id}`, { method: 'DELETE' }),
 };
 
 export const ordersApi = {

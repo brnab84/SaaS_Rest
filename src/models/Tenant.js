@@ -8,6 +8,7 @@ const tenantSchema = new Schema({
     currency: { type: String, default: 'ARS' },
     storeOpen: { type: Boolean, default: true }, // ¿la tienda acepta pedidos ahora?
     allowCancel: { type: Boolean, default: true }, // ¿el cliente puede cancelar su pedido (mientras esté "nuevo")?
+    whitelabel: { type: Boolean, default: true }, // si el plan lo permite, ¿usar marca propia (ocultar "RestaurApp")?
     categories: { type: [String], default: undefined }, // categorías del menú (dropdown)
     // Mensajes que se envían al cliente por WhatsApp según el estado del pedido (parametrizables).
     orderMessages: {
