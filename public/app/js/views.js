@@ -22,7 +22,14 @@ export async function renderResumen(host) {
     </div>
     <div class="panel"><h2>Productos más vendidos</h2><div id="r-prod">—</div></div>
     <div class="panel">
-      <div class="panel-head"><h2>Pronóstico de ventas (IA)</h2><button class="btn btn-accent" id="fc-btn">Proyectar 7 días</button></div>
+      <div class="panel-head"><h2>Pronóstico de ventas (IA)</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select class="input" id="fc-days" style="width:auto;min-height:38px;padding:6px 10px">
+            <option value="7">7 días</option><option value="14">14 días</option><option value="30">30 días</option>
+          </select>
+          <button class="btn btn-accent" id="fc-btn">Proyectar</button>
+        </div>
+      </div>
       <div id="r-fc" style="margin-top:12px"></div>
     </div>`;
 
@@ -42,14 +49,15 @@ export async function renderResumen(host) {
 
   host.querySelector('#fc-btn').addEventListener('click', async (e) => {
     const btn = e.currentTarget; const box = host.querySelector('#r-fc');
+    const days = Number(host.querySelector('#fc-days')?.value) || 7;
     btn.disabled = true; btn.textContent = 'Calculando…'; box.innerHTML = '<div class="spinner">Consultando a la IA…</div>';
     try {
-      const f = await api.forecast(7);
+      const f = await api.forecast(days);
       const items = (f.forecast || []).map((d) => `<div class="row"><span class="name">${esc(d.date)}</span><span class="amt">${money.format(d.expectedRevenue)}</span></div>`).join('');
       box.innerHTML = `<p class="muted" style="margin:0 0 12px">${esc(f.summary || '')}</p>${items ? `<div class="rows">${items}</div>` : '<div class="empty">Sin datos para proyectar.</div>'}`;
     } catch (ex) {
       box.innerHTML = `<div class="empty">${esc(ex.status === 503 ? 'La IA no está configurada (falta ANTHROPIC_API_KEY).' : ex.message)}</div>`;
-    } finally { btn.disabled = false; btn.textContent = 'Proyectar 7 días'; }
+    } finally { btn.disabled = false; btn.textContent = 'Proyectar'; }
   });
 }
 
