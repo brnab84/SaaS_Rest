@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "RestaurApp — Importar catálogo de WhatsApp",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Importa el catálogo abierto en WhatsApp Web directo a tu sesión de RestaurApp: nombre, precio, descripción, categoría e imágenes.",
   "permissions": ["storage"],
   "host_permissions": [

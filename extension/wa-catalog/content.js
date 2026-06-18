@@ -24,6 +24,7 @@
   let clickMode = false;
   let clickHandler = null;
   let importing = false;
+  let manualShown = false;
 
   /* ---------- UI ---------- */
   function ui() {
@@ -36,7 +37,7 @@
     const panel = el('div', 'ra-panel');
     panel.style.display = 'none';
     panel.innerHTML = `
-      <div class="ra-head"><strong>Catálogo → RestaurApp</strong><button id="ra-x" title="Cerrar">✕</button></div>
+      <div class="ra-head"><strong>Catálogo → RestaurApp</strong><span class="ra-ver" id="ra-ver"></span><button id="ra-x" title="Cerrar">✕</button></div>
       <div class="ra-actions">
         <button id="ra-scan" class="ra-btn ra-accent">Leer visible</button>
         <button id="ra-click" class="ra-btn">Modo clic: OFF</button>
@@ -74,6 +75,7 @@
       flash('Token guardado');
       checkSession();
     });
+    try { panel.querySelector('#ra-ver').textContent = `v${chrome.runtime.getManifest().version}`; } catch {}
     renderList();
     checkSession();
     // Reactivo: cuando el bridge (pestaña de la app) escribe el token, actualizamos el estado.
@@ -97,8 +99,14 @@
     const s = await session();
     const st = document.getElementById('ra-status');
     if (!st) return;
-    if (s.ra_token) { st.textContent = `Conectado a tu sesión (${s.ra_api || ''})`; st.className = 'ra-status ok'; }
-    else { st.textContent = '⚠ Abrí RestaurApp y logueate en otra pestaña para conectar tu sesión.'; st.className = 'ra-status warn'; }
+    if (s.ra_token) {
+      st.textContent = `✓ Conectado a tu sesión (${s.ra_api || ''})`; st.className = 'ra-status ok';
+    } else {
+      st.textContent = '⚠ No detecté tu sesión. Pegá tu token abajo (en la app: Menú → Extensión → Copiar token).'; st.className = 'ra-status warn';
+      // Mostramos el campo de token manual la primera vez que falta sesión.
+      const m = document.getElementById('ra-manual');
+      if (m && !manualShown) { m.style.display = 'flex'; manualShown = true; }
+    }
   }
 
   /* ---------- Lectura ---------- */
