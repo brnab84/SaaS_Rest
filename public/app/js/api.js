@@ -89,6 +89,18 @@ export const campaignsApi = {
   suggest: () => request('/campaigns/suggest', { method: 'POST' }),
 };
 
+// Subir una imagen (logo, portada, foto de producto). Devuelve { url } absoluta.
+export async function uploadImage(file) {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch('/api/files', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd });
+  if (res.status === 401) { logout(); throw new ApiError('Sesión expirada', 401); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(data?.error?.message || 'No se pudo subir la imagen', res.status);
+  return data;
+}
+
 // Importar menú: archivo (PDF/imagen) o texto pegado → la IA crea los productos.
 export async function importProducts({ file, text }) {
   const token = getToken();

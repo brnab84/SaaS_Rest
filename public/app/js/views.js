@@ -1,4 +1,4 @@
-import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts } from './api.js';
+import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage } from './api.js';
 import { money, num, esc, formModal, confirmDialog, toast, onInterval, clearTimers } from './ui.js';
 import { renderThemePicker } from './themes.js';
 
@@ -93,10 +93,16 @@ export async function renderMenu(host) {
       { name: 'cost', label: 'Costo (opcional)', type: 'number', step: '0.01', min: 0, help: 'Para calcular tu margen' },
       { name: 'category', label: 'Categoría', placeholder: 'Ej. Pizzas, Bebidas' },
       { name: 'description', label: 'Descripción', type: 'textarea' },
-      { name: 'photo', label: 'Foto (URL)', placeholder: 'https://… (opcional)', help: 'Pegá el link de una imagen del plato' },
+      { name: 'photoFile', label: 'Foto del plato', type: 'file', accept: 'image/*', help: 'Subí una imagen (o pegá una URL abajo)' },
+      { name: 'photo', label: 'Foto (URL, opcional)', placeholder: 'https://…' },
       { name: 'available', label: 'Disponible', type: 'checkbox' },
     ],
-    onSubmit: async (v) => { p ? await productsApi.update(p._id, v) : await productsApi.create(v); toast(p ? 'Producto actualizado' : 'Producto creado', 'success'); reload(); },
+    onSubmit: async (v) => {
+      if (v.photoFile) { const r = await uploadImage(v.photoFile); v.photo = r.url; }
+      delete v.photoFile;
+      if (p) await productsApi.update(p._id, v); else await productsApi.create(v);
+      toast(p ? 'Producto actualizado' : 'Producto creado', 'success'); reload();
+    },
   });
 
   host.innerHTML = `
@@ -458,11 +464,15 @@ export async function renderAjustes(host) {
       { name: 'cuisine', label: 'Rubro', value: tenant.branding?.cuisine, placeholder: 'Ej. Sushi, Empanadas, Pizza, China, Árabe, Parrilla' },
       { name: 'description', label: 'Descripción (aparece en tu landing)', type: 'textarea', value: tenant.branding?.description },
       { name: 'accent', label: 'Color principal', type: 'color', value: tenant.branding?.colors?.accent || '#c0392b' },
-      { name: 'logo', label: 'Logo (URL de imagen)', value: tenant.branding?.logo, placeholder: 'https://…' },
-      { name: 'cover', label: 'Portada (URL de imagen)', value: tenant.branding?.cover, placeholder: 'https://… (foto de fondo del menú)' },
+      { name: 'logoFile', label: 'Logo (subir imagen)', type: 'file', accept: 'image/*' },
+      { name: 'logo', label: 'Logo (o URL)', value: tenant.branding?.logo, placeholder: 'https://…' },
+      { name: 'coverFile', label: 'Portada (subir imagen)', type: 'file', accept: 'image/*' },
+      { name: 'cover', label: 'Portada (o URL)', value: tenant.branding?.cover, placeholder: 'https://…' },
       { name: 'currency', label: 'Moneda', value: tenant.settings?.currency || 'ARS' },
     ],
     onSubmit: async (v) => {
+      if (v.logoFile) { const r = await uploadImage(v.logoFile); v.logo = r.url; }
+      if (v.coverFile) { const r = await uploadImage(v.coverFile); v.cover = r.url; }
       await tenantApi.update({
         name: v.name,
         settings: { currency: v.currency },
