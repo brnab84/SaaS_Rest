@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "RestaurApp — Catálogo de WhatsApp",
+  "version": "1.0.0",
+  "description": "Lee los productos del catálogo abierto en WhatsApp Web y los exporta a CSV para importarlos en RestaurApp (Menú → Importar CSV).",
+  "content_scripts": [
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["content.js"],
+      "css": ["panel.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
