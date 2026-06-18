@@ -1,6 +1,6 @@
 import { applyTheme, getTheme, renderThemePicker, setThemeChangeHandler } from './themes.js';
 import { login, register, getAuthConfig, logout, isAuthed, tenantApi } from './api.js';
-import { renderResumen, renderMenu, renderPedidos, renderGastos, renderAjustes } from './views.js';
+import { renderResumen, renderMenu, renderPedidos, renderGastos, renderCampanias, renderAjustes } from './views.js';
 import { clearTimers } from './ui.js';
 
 const root = document.getElementById('root');
@@ -11,6 +11,7 @@ const ICONS = {
   menu: I('<line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/>'),
   pedidos: I('<path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/>'),
   gastos: I('<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M16 14h.5"/>'),
+  campanias: I('<path d="M3 10v4h3l8 4V6L6 10H3z"/><path d="M17 9a3 3 0 0 1 0 6"/>'),
   ajustes: I('<circle cx="12" cy="12" r="3"/><path d="M20 12a8 8 0 0 0-.13-1.4l2-1.5-2-3.5-2.3 1a8 8 0 0 0-2.4-1.4L14.8 2h-4l-.4 2.8a8 8 0 0 0-2.4 1.4l-2.3-1-2 3.5 2 1.5A8 8 0 0 0 4 12c0 .47.05.94.13 1.4l-2 1.5 2 3.5 2.3-1a8 8 0 0 0 2.4 1.4l.4 2.8h4l.4-2.8a8 8 0 0 0 2.4-1.4l2.3 1 2-3.5-2-1.5c.08-.46.13-.93.13-1.4z"/>'),
 };
 const NAV = [
@@ -18,6 +19,7 @@ const NAV = [
   { id: 'menu', label: 'Menú', view: renderMenu },
   { id: 'pedidos', label: 'Pedidos', view: renderPedidos },
   { id: 'gastos', label: 'Gastos', view: renderGastos },
+  { id: 'campanias', label: 'Campañas', view: renderCampanias },
   { id: 'ajustes', label: 'Ajustes', view: renderAjustes },
 ];
 

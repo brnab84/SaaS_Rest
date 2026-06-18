@@ -81,6 +81,13 @@ export const expensesApi = {
   remove: (id) => request(`/expenses/${id}`, { method: 'DELETE' }),
 };
 
+export const campaignsApi = {
+  list: () => request('/campaigns'),
+  create: (b) => request('/campaigns', { method: 'POST', body: b }),
+  remove: (id) => request(`/campaigns/${id}`, { method: 'DELETE' }),
+  suggest: () => request('/campaigns/suggest', { method: 'POST' }),
+};
+
 // Subida multipart de la foto de factura para OCR.
 export async function uploadExpenseOcr(file) {
   const fd = new FormData();

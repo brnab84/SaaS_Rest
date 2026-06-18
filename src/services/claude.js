@@ -140,6 +140,48 @@ export async function forecastSales({ history, days = 7, currency = 'ARS' }) {
   return parseJson(res);
 }
 
+// --- Sugerencias de publicaciones de Instagram --------------------------
+
+const igSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    posts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          caption: { type: 'string', description: 'Texto listo para publicar, con emojis' },
+          hashtags: { type: 'array', items: { type: 'string' } },
+          idea: { type: 'string', description: 'Breve idea visual para la foto' },
+        },
+        required: ['caption', 'hashtags', 'idea'],
+      },
+    },
+  },
+  required: ['posts'],
+};
+
+export async function suggestInstagramPosts({ businessName, products = [], tone = 'cercano' }) {
+  const menu = products.slice(0, 30).map((p) => `${p.name}${p.price ? ` ($${p.price})` : ''}`).join(', ');
+  const res = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 1500,
+    thinking: { type: 'adaptive' },
+    output_config: { format: { type: 'json_schema', schema: igSchema }, effort: 'low' },
+    messages: [{
+      role: 'user',
+      content: `Sos community manager de "${businessName}", un restaurante. Tono ${tone}. `
+        + 'Proponé 4 ideas de publicaciones de Instagram para promocionar el menú. '
+        + 'Cada una con un caption listo para publicar (con emojis), 5-8 hashtags relevantes en español, '
+        + 'y una breve idea visual para la foto. '
+        + `Menú: ${menu || '(sin productos cargados; hacé ideas genéricas atractivas)'}`,
+    }],
+  });
+  return parseJson(res);
+}
+
 // El SDK puebla parsed_output cuando se usa output_config.format; con fallback a parsear el texto.
 function parseJson(res) {
   if (res.parsed_output) return res.parsed_output;

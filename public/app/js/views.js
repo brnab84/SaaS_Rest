@@ -1,8 +1,9 @@
-import { api, me, tenantApi, productsApi, ordersApi, expensesApi, uploadExpenseOcr } from './api.js';
+import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr } from './api.js';
 import { money, num, esc, formModal, confirmDialog, toast, onInterval } from './ui.js';
 
 const CAT_ES = { supplies: 'Insumos', rent: 'Alquiler', salary: 'Sueldos', utilities: 'Servicios', other: 'Otros' };
 const EXP_CATS = Object.entries(CAT_ES).map(([value, label]) => ({ value, label }));
+const EXP_VALID = new Set(Object.keys(CAT_ES));
 
 const ORDER_FLOW = ['new', 'confirmed', 'preparing', 'ready', 'on_way', 'delivered'];
 const ORDER_LABEL = { new: 'Nuevo', confirmed: 'Confirmado', preparing: 'En cocina', ready: 'Listo', on_way: 'En camino', delivered: 'Entregado', cancelled: 'Cancelado' };
@@ -172,9 +173,12 @@ export async function renderGastos(host) {
     <div class="view-head">
       <h1>Gastos</h1>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="export">Descargar CSV</button>
+        <button class="btn" id="import">Importar CSV</button>
         <button class="btn" id="ocr">📷 Cargar por foto</button>
         <button class="btn btn-accent" id="add">+ Cargar gasto</button>
         <input type="file" accept="image/*" id="ocr-file" hidden />
+        <input type="file" accept=".csv,text/csv" id="csv-file" hidden />
       </div>
     </div>
     ${!items.length ? '<div class="panel"><div class="empty">Sin gastos cargados. Cargá uno manual o sacale una foto a la factura.</div></div>'
@@ -197,9 +201,71 @@ export async function renderGastos(host) {
     try { await uploadExpenseOcr(file); toast('Gasto creado desde la foto (revisalo)', 'success'); reload(); }
     catch (ex) { toast(ex.status === 503 ? 'Falta configurar ANTHROPIC_API_KEY' : (ex.message || 'No se pudo leer la foto'), 'error'); }
   });
+  host.querySelector('#export').addEventListener('click', () => downloadExpensesCSV(items));
+  const csvInput = host.querySelector('#csv-file');
+  host.querySelector('#import').addEventListener('click', () => csvInput.click());
+  csvInput.addEventListener('change', async () => {
+    const file = csvInput.files[0]; if (!file) return;
+    const rows = parseExpensesCSV(await file.text());
+    if (!rows.length) { toast('No se encontraron filas válidas', 'error'); return; }
+    toast(`Importando ${rows.length}…`, 'info');
+    let ok = 0;
+    for (const r of rows) {
+      try { await expensesApi.create({ vendor: r.vendor || undefined, total: r.total, category: EXP_VALID.has(r.category) ? r.category : undefined, date: r.date || undefined }); ok += 1; } catch {}
+    }
+    toast(`${ok} gastos importados`, 'success'); reload();
+  });
   host.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
     if (await confirmDialog('¿Eliminar este gasto?')) { await expensesApi.remove(b.dataset.del); toast('Gasto eliminado', 'success'); reload(); }
   }));
+}
+
+// --- CSV de gastos (export/import client-side) ---
+function downloadExpensesCSV(rows) {
+  const cell = (s) => { const v = String(s ?? ''); return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
+  const lines = ['fecha,proveedor,categoria,total,moneda'];
+  for (const x of rows) {
+    lines.push([new Date(x.date).toISOString().slice(0, 10), cell(x.vendor || ''), x.category || 'other', x.total ?? 0, x.currency || 'ARS'].join(','));
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'gastos.csv'; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function splitCSVLine(line) {
+  const out = []; let cur = ''; let q = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (q) { if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i += 1; } else q = false; } else cur += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === ',') { out.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+function parseExpensesCSV(text) {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const header = splitCSVLine(lines[0]).map((h) => h.trim().toLowerCase());
+  const idx = (names) => header.findIndex((h) => names.includes(h));
+  const iDate = idx(['fecha', 'date']); const iVendor = idx(['proveedor', 'vendor']);
+  const iCat = idx(['categoria', 'category', 'categoría']); const iTotal = idx(['total', 'monto', 'importe']);
+  const out = [];
+  for (let i = 1; i < lines.length; i += 1) {
+    const c = splitCSVLine(lines[i]);
+    const total = Number(String(iTotal >= 0 ? c[iTotal] : '').replace(/[^0-9.,-]/g, '').replace(',', '.'));
+    if (!total) continue;
+    out.push({
+      date: iDate >= 0 ? (c[iDate] || '').trim() : undefined,
+      vendor: iVendor >= 0 ? (c[iVendor] || '').trim() : undefined,
+      category: iCat >= 0 ? (c[iCat] || '').trim().toLowerCase() : undefined,
+      total,
+    });
+  }
+  return out;
 }
 
 /* ===================== AJUSTES ===================== */
@@ -306,4 +372,71 @@ export async function renderAjustes(host) {
       onSubmit: async (v) => { await tenantApi.update({ integrations: c.build(v) }); toast('Integración guardada', 'success'); renderAjustes(host); },
     });
   }));
+}
+
+/* ===================== CAMPAÑAS ===================== */
+const hashes = (arr) => (arr || []).map((h) => (h.startsWith('#') ? h : `#${h}`)).join(' ');
+
+export async function renderCampanias(host) {
+  loading(host);
+  let items;
+  try { items = await campaignsApi.list(); } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  const reload = () => renderCampanias(host);
+
+  const openForm = (preset) => formModal({
+    title: 'Nueva campaña', submitLabel: 'Crear',
+    values: preset || { channel: 'instagram', status: 'draft' },
+    fields: [
+      { name: 'channel', label: 'Canal', type: 'select', options: [{ value: 'instagram', label: 'Instagram' }, { value: 'whatsapp', label: 'WhatsApp' }] },
+      { name: 'type', label: 'Tipo', placeholder: 'Ej. promo, lanzamiento' },
+      { name: 'content', label: 'Contenido', type: 'textarea' },
+      { name: 'scheduledAt', label: 'Programar (opcional)', type: 'date' },
+    ],
+    onSubmit: async (v) => { await campaignsApi.create(v); toast('Campaña creada', 'success'); reload(); },
+  });
+
+  host.innerHTML = `
+    <div class="view-head"><h1>Campañas</h1>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="suggest">✨ Sugerir con IA</button>
+        <button class="btn btn-accent" id="add">+ Nueva campaña</button>
+      </div>
+    </div>
+    <div id="ideas"></div>
+    ${!items.length ? '<div class="panel"><div class="empty">Sin campañas. Creá una o pedí ideas a la IA.</div></div>'
+    : `<div class="list">${items.map((c) => `
+      <div class="list-item">
+        <div class="li-main">
+          <div class="li-title">${esc(c.type || 'Campaña')} <span class="badge badge-muted">${esc(c.channel)}</span> <span class="badge badge-muted">${esc(c.status)}</span></div>
+          <div class="li-sub">${esc((c.content || '').slice(0, 160))}${c.scheduledAt ? ' · ' + new Date(c.scheduledAt).toLocaleDateString('es-AR') : ''}</div>
+        </div>
+        <div class="li-actions"><button class="btn btn-sm btn-danger" data-del="${c._id}">Eliminar</button></div>
+      </div>`).join('')}</div>`}`;
+
+  host.querySelector('#add').addEventListener('click', () => openForm());
+  host.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
+    if (await confirmDialog('¿Eliminar esta campaña?')) { await campaignsApi.remove(b.dataset.del); toast('Campaña eliminada', 'success'); reload(); }
+  }));
+
+  host.querySelector('#suggest').addEventListener('click', async (e) => {
+    const btn = e.currentTarget; const box = host.querySelector('#ideas');
+    btn.disabled = true; btn.textContent = 'Pensando…'; box.innerHTML = '<div class="spinner">La IA está creando ideas…</div>';
+    try {
+      const data = await campaignsApi.suggest();
+      const posts = data.posts || [];
+      box.innerHTML = posts.length ? `<div class="panel"><h2>Ideas para Instagram</h2><div class="rows">${posts.map((p, i) => `
+        <div class="idea">
+          <div style="white-space:pre-wrap">${esc(p.caption)}</div>
+          <div class="muted" style="font-size:12px;margin-top:6px">${esc(hashes(p.hashtags))}</div>
+          <div class="muted" style="font-size:12px;margin-top:4px">📸 ${esc(p.idea)}</div>
+          <button class="btn btn-sm" data-use="${i}" style="margin-top:10px">Usar como campaña</button>
+        </div>`).join('')}</div></div>` : '<div class="empty">Sin ideas.</div>';
+      box.querySelectorAll('[data-use]').forEach((b) => b.addEventListener('click', () => {
+        const p = posts[Number(b.dataset.use)];
+        openForm({ channel: 'instagram', status: 'draft', type: 'post IG', content: `${p.caption}\n\n${hashes(p.hashtags)}` });
+      }));
+    } catch (ex) {
+      box.innerHTML = `<div class="empty">${esc(ex.status === 503 ? 'La IA no está configurada (falta ANTHROPIC_API_KEY).' : ex.message)}</div>`;
+    } finally { btn.disabled = false; btn.textContent = '✨ Sugerir con IA'; }
+  });
 }

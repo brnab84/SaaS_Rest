@@ -3,10 +3,25 @@ import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { Campaign } from '../models/Campaign.js';
+import { Product } from '../models/Product.js';
+import { Tenant } from '../models/Tenant.js';
+import { suggestInstagramPosts } from '../services/claude.js';
 import { notFound } from '../utils/errors.js';
 
 const router = Router();
 router.use(requireAuth);
+
+// Sugerencias de publicaciones de Instagram con IA (sobre el menú del comercio).
+router.post('/suggest', async (req, res, next) => {
+  try {
+    const [tenant, products] = await Promise.all([
+      Tenant.findById(req.auth.tenantId).select('name'),
+      Product.find({ tenantId: req.auth.tenantId, available: true }).select('name price').limit(30),
+    ]);
+    const data = await suggestInstagramPosts({ businessName: tenant?.name || 'tu comercio', products });
+    res.json(data);
+  } catch (e) { next(e); }
+});
 
 const campaignSchema = z.object({
   channel: z.enum(['instagram', 'whatsapp']),
