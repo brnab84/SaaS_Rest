@@ -54,6 +54,11 @@ Leyenda: `[x]` hecho · `[~]` parcial · `[ ]` pendiente. Actualizado: 2026-06-1
 - [x] Gastos por foto con IA + carga manual
 - [x] Exportar gastos (CSV) e importar gastos desde CSV (Excel → "guardar como CSV")
 - [~] Forecast con selector de horizonte (7/14/30 días) en Resumen
+- [x] Landing tipo catálogo: portada, logo, rubro y secciones por categoría
+- [x] Productos con foto; duplicar e importar por CSV; abrir/cerrar tienda; marcar pedido cobrado
+- [ ] Importar catálogo desde PDF (IA, Claude document) — planificado
+- [ ] Importar catálogo desde WhatsApp Business (Graph API /product_catalogs) — planificado
+- [ ] Subida de imágenes a storage (S3/Cloudinary) en vez de URL — planificado
 **Entregable:** el comercio autogestiona integraciones, branding, marketing y finanzas. ✅
 
 ---

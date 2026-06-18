@@ -435,16 +435,18 @@ export async function renderAjustes(host) {
     submitLabel: 'Guardar',
     fields: [
       { name: 'name', label: 'Nombre del comercio', required: true, value: tenant.name },
+      { name: 'cuisine', label: 'Rubro', value: tenant.branding?.cuisine, placeholder: 'Ej. Sushi, Empanadas, Pizza, China, Árabe, Parrilla' },
       { name: 'description', label: 'Descripción (aparece en tu landing)', type: 'textarea', value: tenant.branding?.description },
       { name: 'accent', label: 'Color principal', type: 'color', value: tenant.branding?.colors?.accent || '#c0392b' },
       { name: 'logo', label: 'Logo (URL de imagen)', value: tenant.branding?.logo, placeholder: 'https://…' },
+      { name: 'cover', label: 'Portada (URL de imagen)', value: tenant.branding?.cover, placeholder: 'https://… (foto de fondo del menú)' },
       { name: 'currency', label: 'Moneda', value: tenant.settings?.currency || 'ARS' },
     ],
     onSubmit: async (v) => {
       await tenantApi.update({
         name: v.name,
         settings: { currency: v.currency },
-        branding: { description: v.description, logo: v.logo || '', colors: { accent: v.accent } },
+        branding: { description: v.description, logo: v.logo || '', cover: v.cover || '', colors: { accent: v.accent }, cuisine: v.cuisine },
       });
       toast('Comercio actualizado', 'success');
       renderAjustes(host);

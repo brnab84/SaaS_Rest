@@ -42,8 +42,10 @@ const patchSchema = z.object({
   branding: z.object({
     description: z.string().max(300).optional(),
     logo: z.string().url().optional().or(z.literal('')),
+    cover: z.string().url().optional().or(z.literal('')),
     colors: z.object({ accent: z.string().max(32).optional() }).optional(),
     theme: z.string().max(24).optional(),
+    cuisine: z.string().max(40).optional(),
   }).optional(),
   integrations: z.object({
     whatsapp: z.object({ phoneId: str, wabaId: str, token: str }).optional(),
@@ -65,8 +67,10 @@ router.patch('/', requireRole('owner', 'admin'), validate(patchSchema), async (r
     const br = b.branding || {};
     if (br.description !== undefined) $set['branding.description'] = br.description;
     if (br.logo !== undefined) $set['branding.logo'] = br.logo;
+    if (br.cover !== undefined) $set['branding.cover'] = br.cover;
     if (br.colors?.accent !== undefined) $set['branding.colors.accent'] = br.colors.accent;
     if (br.theme !== undefined) $set['branding.theme'] = br.theme;
+    if (br.cuisine !== undefined) $set['branding.cuisine'] = br.cuisine;
 
     const ig = b.integrations || {};
     if (ig.whatsapp) {

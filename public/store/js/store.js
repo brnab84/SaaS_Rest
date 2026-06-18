@@ -40,8 +40,11 @@
   function totals() { let count = 0; let total = 0; for (const id in cart) { count += cart[id]; total += (byId[id]?.price || 0) * cart[id]; } return { count, total }; }
 
   function header() {
-    const logo = tenant.branding?.logo ? `<img class="logo" src="${esc(tenant.branding.logo)}" alt="${esc(tenant.name)}" />` : '';
-    return `<header class="hero">${logo}<p class="eyebrow">Pedí online · Envíos hoy</p><h1>${esc(tenant.name)}</h1><p>${esc(tenant.branding?.description || 'Hacé tu pedido y te contactamos para coordinar.')}</p></header>`;
+    const b = tenant.branding || {};
+    const cover = b.cover ? `<div class="cover" style="background-image:url('${esc(b.cover)}')"></div>` : '<div class="cover"></div>';
+    const logo = b.logo ? `<img class="logo" src="${esc(b.logo)}" alt="${esc(tenant.name)}" />` : '';
+    const eyebrow = b.cuisine ? `${esc(b.cuisine)} · Pedí online` : 'Pedí online · Envíos hoy';
+    return `${cover}<header class="hero">${logo}<p class="eyebrow">${eyebrow}</p><h1>${esc(tenant.name)}</h1><p>${esc(b.description || 'Hacé tu pedido y te contactamos para coordinar.')}</p></header>`;
   }
   function prodHTML(p) {
     const q = cart[p._id] || 0;

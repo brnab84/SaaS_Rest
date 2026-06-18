@@ -17,7 +17,10 @@ const tenantSchema = new Schema({
     },
     pedidosya: { vendorId: String, integrationActive: { type: Boolean, default: false } },
   },
-  branding: { logo: String, colors: { type: Map, of: String }, description: String, theme: String },
+  branding: {
+    logo: String, cover: String, colors: { type: Map, of: String },
+    description: String, theme: String, cuisine: String, // cuisine = rubro (sushi, empanadas, etc.)
+  },
 }, { timestamps: true });
 
 export const Tenant = model('Tenant', tenantSchema);
