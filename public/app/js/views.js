@@ -1,4 +1,4 @@
-import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto, importProductsFromWhatsApp, ordersStreamUrl, adminApi } from './api.js';
+import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto, importProductsFromWhatsApp, ordersStreamUrl, adminApi, getToken } from './api.js';
 import { money, num, esc, formModal, confirmDialog, infoModal, toast, onInterval, clearTimers, onCleanup, playPing, pushNotify, requestNotifyPermission, soundEnabled, setSoundEnabled, getTone, setTone } from './ui.js';
 import { renderThemePicker } from './themes.js';
 
@@ -223,7 +223,7 @@ export async function renderMenu(host) {
   host.querySelector('#ext-wa').addEventListener('click', async () => {
     let meta = { version: '', file: '' };
     try { meta = await fetch('/downloads/ext-version.json', { cache: 'no-store' }).then((r) => r.json()); } catch {}
-    infoModal({
+    const ov = infoModal({
       title: 'Importar desde WhatsApp Web (extensión Chrome)',
       html: `
         <p class="muted" style="margin:0 0 12px">Extensión de Chrome que lee el catálogo abierto en WhatsApp Web e importa los productos (precio, descripción, categoría e imagen) <strong>directo a tu cuenta</strong>, sin descargar archivos.</p>
@@ -232,10 +232,18 @@ export async function renderMenu(host) {
           <li>Descomprimí el <strong>.zip</strong> en una carpeta.</li>
           <li>Entrá a <span class="mono">chrome://extensions</span> y activá <strong>Modo de desarrollador</strong>.</li>
           <li><strong>Cargar descomprimida</strong> → elegí la carpeta.</li>
-          <li>Dejá <strong>esta app abierta y con tu sesión iniciada</strong> (la extensión la usa para importar).</li>
+          <li><strong>Recargá esta pestaña</strong> de RestaurApp (F5) después de instalar, para que la extensión tome tu sesión.</li>
           <li>Abrí <strong>web.whatsapp.com</strong> con el catálogo abierto → botón <strong>🍽️ RestaurApp</strong> → <em>Leer visible</em> o <em>Modo clic</em> → <strong>Importar a RestaurApp</strong>.</li>
         </ol>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+          <p class="muted" style="font-size:12px;margin:0 0 8px">¿La extensión dice "No encuentro tu sesión"? Copiá tu token y pegalo en la extensión (link "Pegar token manual").</p>
+          <button class="btn btn-sm" id="ra-copy-token">🔑 Copiar token para la extensión</button>
+        </div>
         <p class="muted" style="font-size:12px;margin-top:12px">Los productos aparecen acá en el Menú. Si alguno no se detecta, usá "Modo clic". Recordá tu límite de productos según el plan.</p>`,
+    });
+    ov.card.querySelector('#ra-copy-token')?.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(getToken() || ''); toast('Token copiado — pegalo en la extensión', 'success'); }
+      catch { toast('No se pudo copiar', 'error'); }
     });
   });
 

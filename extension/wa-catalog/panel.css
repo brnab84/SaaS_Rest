@@ -23,6 +23,10 @@
 .ra-status { font-size: 11px; padding: 0 14px 8px; color: #9a9a9a; }
 .ra-status.ok { color: #5fd08a; }
 .ra-status.warn { color: #f2b121; }
+.ra-manual-row { padding: 0 14px 6px; }
+.ra-manual-row a { color: #9a9a9a; font-size: 11px; text-decoration: underline; }
+.ra-manual { display: flex; gap: 6px; padding: 0 14px 8px; }
+.ra-manual .ra-in { flex: 1; }
 .ra-list { overflow-y: auto; padding: 0 14px; flex: 1; }
 .ra-empty { color: #9a9a9a; text-align: center; padding: 20px 0; }
 .ra-item { display: grid; grid-template-columns: 30px 1fr 64px 78px 22px; gap: 6px; margin-bottom: 6px; align-items: center; }

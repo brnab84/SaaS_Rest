@@ -16,6 +16,9 @@
 
   const PRICE_RE = /(?:\$|US\$|u\$s|usd|ars|eur|€|r\$|s\/|bs\.?|₲|gs\.?|g\$|cop|mxn|clp|pen|uyu|bob|pyg)\s*\d[\d.,]*/i;
   const onlyNumber = (s) => Number(String(s || '').replace(/[^0-9.,-]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.'));
+  const API_DEFAULT = 'https://api-production-1cc8.up.railway.app';
+  // Líneas "ruido" de la UI de WhatsApp que NO son el nombre del producto.
+  const NOISE_RE = /^(agregar|añadir|add to cart|add|ver(\s|$)|ver más|ver mas|message|mensaje|pedir|comprar|disponible|esperando|en l[ií]nea|online|escribiendo|typing|[úu]ltima vez|last seen|cargando|loading|reintentar|conectando|sin conexi[óo]n|detalles|cat[áa]logo|\d{1,2}:\d{2})/i;
 
   let captured = [];     // [{ name, price, desc, category, imgUrl }]
   let clickMode = false;
@@ -41,6 +44,11 @@
       </div>
       <div class="ra-hint">Abrí el catálogo en WhatsApp. "Leer visible" toma los productos en pantalla (scrolleá para cargar más). "Modo clic" te deja tocar productos de a uno. Tené la app RestaurApp abierta y logueada en otra pestaña.</div>
       <div id="ra-status" class="ra-status"></div>
+      <div class="ra-manual-row"><a id="ra-manual-toggle" href="#">¿No conecta? Pegar token manual</a></div>
+      <div id="ra-manual" class="ra-manual" style="display:none">
+        <input id="ra-token-in" class="ra-in" placeholder="Pegá tu token (Menú → Extensión → Copiar token)" />
+        <button id="ra-token-save" class="ra-btn ra-accent">Guardar token</button>
+      </div>
       <div id="ra-list" class="ra-list"></div>
       <div class="ra-foot">
         <span id="ra-count">0 productos</span>
@@ -53,8 +61,24 @@
     panel.querySelector('#ra-click').addEventListener('click', toggleClickMode);
     panel.querySelector('#ra-clear').addEventListener('click', () => { captured = []; renderList(); });
     panel.querySelector('#ra-import').addEventListener('click', importAll);
+    panel.querySelector('#ra-manual-toggle').addEventListener('click', (e) => {
+      e.preventDefault();
+      const m = panel.querySelector('#ra-manual');
+      m.style.display = m.style.display === 'none' ? 'flex' : 'none';
+    });
+    panel.querySelector('#ra-token-save').addEventListener('click', async () => {
+      const val = (panel.querySelector('#ra-token-in').value || '').trim();
+      if (!val) return;
+      try { await chrome.storage.local.set({ ra_token: val, ra_api: API_DEFAULT }); } catch {}
+      panel.querySelector('#ra-manual').style.display = 'none';
+      flash('Token guardado');
+      checkSession();
+    });
     renderList();
     checkSession();
+    // Reactivo: cuando el bridge (pestaña de la app) escribe el token, actualizamos el estado.
+    try { chrome.storage.onChanged.addListener((c, area) => { if (area === 'local') checkSession(); }); } catch {}
+    setInterval(checkSession, 4000);
   }
 
   function togglePanel() {
@@ -93,10 +117,9 @@
     if (!lines.length) return null;
     const priceLine = lines.find((l) => PRICE_RE.test(l) && l.length < 30);
     const price = priceLine ? onlyNumber(priceLine.match(PRICE_RE)[0]) : NaN;
-    const ignore = /^(agregar|ver|añadir|add|message|mensaje|pedir|comprar|disponible)/i;
-    const name = lines.find((l) => l !== priceLine && !PRICE_RE.test(l) && !ignore.test(l) && l.length > 1);
+    const name = lines.find((l) => l !== priceLine && !PRICE_RE.test(l) && !NOISE_RE.test(l) && l.length > 1 && l.length <= 60);
     if (!name || !Number.isFinite(price) || price <= 0) return null;
-    const desc = lines.filter((l) => l !== name && l !== priceLine && !ignore.test(l)).join(' ').slice(0, 280);
+    const desc = lines.filter((l) => l !== name && l !== priceLine && !NOISE_RE.test(l)).join(' ').slice(0, 280);
     const img = card.querySelector('img');
     return { name, price, desc, category: '', imgUrl: img && img.src ? img.src : '' };
   }
