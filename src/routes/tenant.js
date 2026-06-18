@@ -5,9 +5,12 @@ import { validate } from '../middleware/validate.js';
 import { Tenant } from '../models/Tenant.js';
 import { Product } from '../models/Product.js';
 import { Order } from '../models/Order.js';
+import { User } from '../models/User.js';
 import { encryptSecret } from '../utils/crypto.js';
 import { notFound } from '../utils/errors.js';
 import { PLANS, getPlan } from '../config/plans.js';
+import { createSubscription } from '../services/mercadopago.js';
+import { env } from '../config/env.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -65,6 +68,28 @@ router.patch('/plan', requireRole('owner'), validate(planSchema), async (req, re
     const tenant = await Tenant.findByIdAndUpdate(req.auth.tenantId, { $set: { plan: req.body.plan } }, { new: true });
     if (!tenant) return next(notFound('Comercio no encontrado'));
     res.json({ plan: tenant.plan });
+  } catch (e) { next(e); }
+});
+
+// Iniciar el cobro de un plan pago. Si hay credenciales MP de la plataforma, crea una
+// suscripción y devuelve { mode:'checkout', url } para redirigir; si no, { mode:'manual' }.
+const checkoutSchema = z.object({ plan: z.enum(['pro', 'business']) });
+router.post('/billing/checkout', requireRole('owner'), validate(checkoutSchema), async (req, res, next) => {
+  try {
+    const planId = req.body.plan;
+    const plan = getPlan(planId);
+    if (!env.mp.accessToken) return res.json({ mode: 'manual' }); // sin credenciales de cobro
+    const user = await User.findById(req.auth.userId).select('email');
+    const { init_point } = await createSubscription({
+      accessToken: env.mp.accessToken,
+      planLabel: plan.label,
+      amount: plan.priceMonthly,
+      payerEmail: user?.email,
+      externalReference: `${req.auth.tenantId}:${planId}`,
+      backUrl: `${env.appBaseUrl}/app/`,
+      notificationUrl: `${env.appBaseUrl}/webhooks/mp-billing`,
+    });
+    res.json({ mode: 'checkout', url: init_point });
   } catch (e) { next(e); }
 });
 

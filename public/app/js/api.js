@@ -63,6 +63,7 @@ export const tenantApi = {
   update: (b) => request('/tenant', { method: 'PATCH', body: b }),
   usage: () => request('/tenant/usage'),
   setPlan: (plan) => request('/tenant/plan', { method: 'PATCH', body: { plan } }),
+  checkout: (plan) => request('/tenant/billing/checkout', { method: 'POST', body: { plan } }),
 };
 
 // URL del stream SSE de pedidos (el token va por query porque EventSource no manda headers).

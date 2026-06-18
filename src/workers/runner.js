@@ -1,11 +1,12 @@
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { claimNextJob } from '../jobs/queue.js';
-import { processMpPayment, processWaMessage } from '../jobs/handlers.js';
+import { processMpPayment, processWaMessage, processMpSubscription } from '../jobs/handlers.js';
 
 // Mapeo de tipo de job → handler de procesamiento.
 const HANDLERS = {
   mp_payment: (p) => processMpPayment(p),
+  mp_subscription: (p) => processMpSubscription(p),
   wa_message: (p) => processWaMessage(p),
 };
 

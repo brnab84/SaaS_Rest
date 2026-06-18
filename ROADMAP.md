@@ -47,14 +47,15 @@ Leyenda: `[x]` hecho · `[~]` parcial · `[ ]` pendiente. Actualizado: 2026-06-1
 - [x] Catálogo tipo PedidosYa/Rappi con navegación por categorías
 **Entregable:** cada comercio tiene su web de pedidos autoservicio. ✅
 
-## Fase 6 — Billing + escalado  🟡 en curso
+## Fase 6 — Billing + escalado  ✅ lista (falta cargar credenciales de cobro)
 - [x] Planes (free/pro/business) con límites de productos y pedidos/mes
 - [x] Métricas de uso + panel "Plan y uso" en Ajustes
 - [x] Enforcement del límite de productos al crear/importar
-- [x] Cambio de plan desde el panel (alta manual)
-- [ ] Cobro automático por suscripción (Mercado Pago/Stripe) — requiere credenciales
+- [x] Cambio de plan desde el panel (alta manual cuando no hay cobro)
+- [x] Cobro por suscripción mensual con Mercado Pago (preapproval + webhook que activa el plan)
+- [~] Requiere cargar `MP_ACCESS_TOKEN` y `MP_WEBHOOK_SECRET` de la plataforma para cobrar de verdad
 - [x] Onboarding (registro de comercio)
-**Entregable:** producto cobrable y listo para crecer.
+**Entregable:** producto cobrable y listo para crecer. ✅
 
 ## Fase 7 — Panel de administración + crecimiento  ✅ lista
 - [x] Config de integraciones por comercio (Instagram, WhatsApp, Mercado Pago) — tokens cifrados

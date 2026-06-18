@@ -2,9 +2,10 @@
 // La usan tanto el webhook (best-effort inline) como el worker async (cola con reintentos).
 import { Order } from '../models/Order.js';
 import { Tenant } from '../models/Tenant.js';
-import { getPayment } from '../services/mercadopago.js';
+import { getPayment, getSubscription } from '../services/mercadopago.js';
 import { resolveTenantSecret } from '../utils/secrets.js';
 import { generateOrderCode } from '../utils/orderCode.js';
+import { PLAN_IDS } from '../config/plans.js';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
@@ -30,6 +31,25 @@ export async function processMpPayment({ tenantId, paymentId }) {
     order.payment.status = order.payment.amountPaid >= order.total ? 'paid' : 'partial';
     await order.save();
   }
+}
+
+// --- Mercado Pago: suscripción de plan → activa/desactiva el plan del comercio ---
+// external_reference = "tenantId:plan". La plataforma cobra con su propia cuenta MP.
+export async function processMpSubscription({ preapprovalId }) {
+  const accessToken = env.mp.accessToken;
+  if (!accessToken) { logger.warn('MP billing sin access token de plataforma'); return; }
+  const sub = await getSubscription({ accessToken, preapprovalId });
+  const [tenantId, plan] = String(sub.external_reference || '').split(':');
+  if (!tenantId || !PLAN_IDS.includes(plan)) return;
+
+  // authorized = suscripción activa → aplica el plan; cancelled/paused → vuelve a free.
+  let newPlan = null;
+  if (sub.status === 'authorized') newPlan = plan;
+  else if (sub.status === 'cancelled' || sub.status === 'paused') newPlan = 'free';
+  if (!newPlan) return;
+
+  await Tenant.findByIdAndUpdate(tenantId, { $set: { plan: newPlan } });
+  logger.info({ tenantId, plan: newPlan, status: sub.status }, 'Plan actualizado por suscripción MP');
 }
 
 // --- WhatsApp: mensaje entrante → Order (channel whatsapp), idempotente por messageId ---

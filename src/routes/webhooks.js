@@ -35,6 +35,27 @@ router.post('/mp/:tenantId', async (req, res) => {
   res.sendStatus(200);
 });
 
+// --- Mercado Pago: suscripciones de plan (cuenta de la plataforma) ---
+router.post('/mp-billing', async (req, res) => {
+  const secret = env.mp.webhookSecret;
+  if (secret) {
+    const ok = verifyMpSignature({
+      signatureHeader: req.headers['x-signature'],
+      requestId: req.headers['x-request-id'],
+      dataId: req.query['data.id'] ?? req.body?.data?.id,
+      secret,
+    });
+    if (!ok) return res.sendStatus(401);
+  }
+  try {
+    const { type, data } = req.body;
+    if ((type === 'subscription_preapproval' || type === 'preapproval') && data?.id) {
+      await enqueueJob('mp_subscription', { preapprovalId: String(data.id) });
+    }
+  } catch (e) { logger.error({ e }, 'Webhook MP billing: fallo al encolar'); }
+  res.sendStatus(200);
+});
+
 // --- WhatsApp: verificación (GET) + mensajes entrantes (POST) ---
 router.get('/wa', (req, res) => {
   const mode = req.query['hub.mode'];

@@ -39,3 +39,34 @@ export async function getPayment({ accessToken, paymentId }) {
   if (!res.ok) throw new Error(`MP getPayment falló: ${res.status}`);
   return res.json();
 }
+
+// --- Suscripción de plan (la plataforma cobra al comercio) -----------------
+// Crea una suscripción (preapproval) recurrente mensual y devuelve { id, init_point }.
+// Usa la cuenta MP de la plataforma (RestaurApp), no la del comercio.
+export async function createSubscription({ accessToken, planLabel, amount, payerEmail, externalReference, backUrl, notificationUrl }) {
+  const res = await fetch(`${MP_API}/preapproval`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      reason: `RestaurApp — Plan ${planLabel}`,
+      external_reference: externalReference, // "tenantId:plan" para reconciliar en el webhook
+      payer_email: payerEmail,
+      back_url: backUrl,
+      status: 'pending',
+      auto_recurring: { frequency: 1, frequency_type: 'months', transaction_amount: amount, currency_id: 'ARS' },
+      notification_url: notificationUrl,
+    }),
+  });
+  if (!res.ok) throw new Error(`MP preapproval falló: ${res.status} ${await res.text()}`);
+  const data = await res.json();
+  return { id: data.id, init_point: data.init_point };
+}
+
+// Consulta una suscripción (preapproval) por ID (usado en el webhook de billing)
+export async function getSubscription({ accessToken, preapprovalId }) {
+  const res = await fetch(`${MP_API}/preapproval/${preapprovalId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`MP getSubscription falló: ${res.status}`);
+  return res.json();
+}

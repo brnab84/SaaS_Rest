@@ -601,7 +601,7 @@ export async function renderAjustes(host) {
     </div>
     <div class="panel">
       <h2>Plan y uso</h2>
-      <p class="muted" style="margin:0 0 12px">Tu plan define cuántos <strong>productos</strong> y <strong>pedidos por mes</strong> podés tener. El cambio de plan es inmediato; el cobro automático se activa cuando conectes el pago.</p>
+      <p class="muted" style="margin:0 0 12px">Tu plan define cuántos <strong>productos</strong> y <strong>pedidos por mes</strong> podés tener. Los planes pagos se cobran por <strong>suscripción mensual con Mercado Pago</strong>; al confirmar el pago tu plan se activa solo. Bajar a Free es inmediato.</p>
       <div class="kv"><span>Plan actual</span><strong>${esc(plans[planId]?.label || planId)}</strong></div>
       <div style="margin-top:12px">
         <div class="kv"><span>Productos</span><strong>${num.format(used.products || 0)} / ${limTxt(lim.products)}</strong></div>
@@ -680,12 +680,25 @@ export async function renderAjustes(host) {
     onSubmit: async (v) => { await tenantApi.update({ settings: { orderMessages: v } }); toast('Mensajes guardados', 'success'); renderAjustes(host); },
   }));
 
-  // Cambiar de plan
+  // Cambiar de plan: el plan gratis es inmediato; los pagos van por Mercado Pago
+  // (si todavía no hay credenciales de cobro, el backend responde modo manual).
   host.querySelectorAll('[data-plan]').forEach((b) => b.addEventListener('click', async () => {
-    const id = b.dataset.plan; const label = plans[id]?.label || id;
-    if (!(await confirmDialog(`¿Cambiar tu plan a ${label}?`, { danger: false }))) return;
-    try { await tenantApi.setPlan(id); toast(`Plan cambiado a ${label}`, 'success'); renderAjustes(host); }
-    catch (ex) { toast(ex.message || 'No se pudo cambiar el plan', 'error'); }
+    const id = b.dataset.plan; const label = plans[id]?.label || id; const price = plans[id]?.priceMonthly || 0;
+    if (id === 'free' || price === 0) {
+      if (!(await confirmDialog(`¿Cambiar tu plan a ${label}?`, { danger: false }))) return;
+      try { await tenantApi.setPlan(id); toast(`Plan cambiado a ${label}`, 'success'); renderAjustes(host); }
+      catch (ex) { toast(ex.message || 'No se pudo cambiar el plan', 'error'); }
+      return;
+    }
+    if (!(await confirmDialog(`Suscripción al plan ${label} por ${money.format(price)}/mes. ¿Continuar?`, { danger: false }))) return;
+    try {
+      const r = await tenantApi.checkout(id);
+      if (r.mode === 'checkout' && r.url) { toast('Te llevamos a Mercado Pago…', 'info'); window.location.href = r.url; return; }
+      // Modo manual: aún no hay cobro configurado, activamos el plan igual.
+      await tenantApi.setPlan(id);
+      toast(`Plan ${label} activado (sin cobro: configurá Mercado Pago para cobrar)`, 'success');
+      renderAjustes(host);
+    } catch (ex) { toast(ex.message || 'No se pudo iniciar el cobro', 'error'); }
   }));
 
   host.querySelector('#toggle-store')?.addEventListener('click', async () => {
