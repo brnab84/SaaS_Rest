@@ -34,6 +34,44 @@ registerSW();
 window.addEventListener('hashchange', onRoute);
 start();
 syncTenantTheme();
+setupAutoUpdate();
+
+/* ---------- Auto-actualización: forzar la última versión ---------- */
+let bootVer = null;
+async function checkVersion() {
+  try {
+    const v = (await (await fetch('/api/version', { cache: 'no-store' })).json()).version;
+    if (bootVer && v && v !== bootVer) showUpdateBanner();
+    if (!bootVer) bootVer = v;
+  } catch {}
+}
+function setupAutoUpdate() {
+  // Al entrar ya recibís la última versión (el SW es network-first). Durante el uso,
+  // si entra un deploy nuevo, mostramos un cartel para actualizar sin cortarte.
+  checkVersion();
+  setInterval(checkVersion, 60000);
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistration().then((reg) => {
+      if (!reg) return;
+      reg.update().catch(() => {});
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if (nw) nw.addEventListener('statechange', () => { if (nw.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner(); });
+      });
+    }).catch(() => {});
+  }
+}
+function showUpdateBanner() {
+  if (document.getElementById('upd-banner')) return;
+  const b = document.createElement('div');
+  b.id = 'upd-banner'; b.className = 'upd-banner';
+  b.innerHTML = '⬆ Hay una versión nueva de la app. <button id="upd-go">Actualizar</button>';
+  document.body.appendChild(b);
+  document.getElementById('upd-go').addEventListener('click', async () => {
+    try { const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); } catch {}
+    location.reload();
+  });
+}
 
 // Aplica el tema guardado en el comercio (si el usuario lo cambió desde otro dispositivo).
 function syncTenantTheme() {

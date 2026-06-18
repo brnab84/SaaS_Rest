@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import mongoose from 'mongoose';
 import { requireAuth } from '../middleware/auth.js';
+import { requireFeature } from '../middleware/feature.js';
 import { Order } from '../models/Order.js';
 import { Expense } from '../models/Expense.js';
 import { Tenant } from '../models/Tenant.js';
@@ -110,7 +111,7 @@ router.get('/products', async (req, res, next) => {
 });
 
 // GET /api/dashboard/forecast?days=7 — proyección de ventas con Claude sobre el histórico
-router.get('/forecast', async (req, res, next) => {
+router.get('/forecast', requireFeature('ai'), async (req, res, next) => {
   try {
     const tenantId = tenantOid(req);
     const days = Math.min(Math.max(Number(req.query.days) || 7, 1), 30);

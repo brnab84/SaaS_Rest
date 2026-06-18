@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireFeature } from '../middleware/feature.js';
 import { validate } from '../middleware/validate.js';
 import { Product } from '../models/Product.js';
 import { Tenant } from '../models/Tenant.js';
@@ -28,7 +29,7 @@ async function assertProductQuota(tenantId, adding = 1) {
 }
 
 // Importar menú con IA: subí un PDF/imagen (campo "file") o pegá el texto (campo "text").
-router.post('/import', requireRole('owner', 'admin'), upload.single('file'), async (req, res, next) => {
+router.post('/import', requireRole('owner', 'admin'), requireFeature('ai'), upload.single('file'), async (req, res, next) => {
   try {
     let data;
     if (req.file) {
@@ -52,7 +53,7 @@ router.post('/import', requireRole('owner', 'admin'), upload.single('file'), asy
 
 // Importar el catálogo de WhatsApp Business (Meta Commerce). Usa el token cifrado del comercio.
 // Body: { catalogId }. El ID está en Commerce Manager → tu catálogo → Configuración.
-router.post('/import/whatsapp', requireRole('owner', 'admin'), async (req, res, next) => {
+router.post('/import/whatsapp', requireRole('owner', 'admin'), requireFeature('integrations'), async (req, res, next) => {
   try {
     const catalogId = String(req.body?.catalogId || '').trim();
     if (!catalogId) return next(badRequest('Falta el ID del catálogo de WhatsApp'));
@@ -73,7 +74,7 @@ router.post('/import/whatsapp', requireRole('owner', 'admin'), async (req, res, 
 });
 
 // Crear artículo desde una foto del plato: la IA detecta nombre, descripción y categoría.
-router.post('/from-photo', requireRole('owner', 'admin'), upload.single('file'), async (req, res, next) => {
+router.post('/from-photo', requireRole('owner', 'admin'), requireFeature('ai'), upload.single('file'), async (req, res, next) => {
   try {
     if (!req.file || !req.file.mimetype?.startsWith('image/')) return next(badRequest('Subí una imagen del plato'));
     const tenant = await Tenant.findById(req.auth.tenantId).select('settings.categories');

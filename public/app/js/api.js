@@ -83,6 +83,8 @@ export const productsApi = {
 export const adminApi = {
   overview: () => request('/admin/overview'),
   setPlan: (id, plan) => request(`/admin/tenants/${id}/plan`, { method: 'PATCH', body: { plan } }),
+  tenantDetail: (id) => request(`/admin/tenants/${id}`),
+  setPlanConfig: (id, body) => request(`/admin/plans/${id}`, { method: 'PATCH', body }),
 };
 
 export const ordersApi = {

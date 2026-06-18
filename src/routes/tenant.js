@@ -7,8 +7,8 @@ import { Product } from '../models/Product.js';
 import { Order } from '../models/Order.js';
 import { User } from '../models/User.js';
 import { encryptSecret } from '../utils/crypto.js';
-import { notFound } from '../utils/errors.js';
-import { PLANS, getPlan } from '../config/plans.js';
+import { notFound, forbidden } from '../utils/errors.js';
+import { allPlans, getPlan } from '../config/plans.js';
 import { createSubscription } from '../services/mercadopago.js';
 import { env } from '../config/env.js';
 
@@ -53,7 +53,7 @@ router.get('/usage', async (req, res, next) => {
     ]);
     res.json({
       plan: tenant?.plan || 'free',
-      plans: PLANS, // catálogo de planes para mostrar comparación y precios
+      plans: allPlans(), // catálogo de planes para mostrar comparación y precios
       limits: plan.limits, // Infinity se serializa como null = sin límite
       usage: { products, ordersThisMonth },
     });
@@ -128,6 +128,13 @@ const patchSchema = z.object({
 router.patch('/', requireRole('owner', 'admin'), validate(patchSchema), async (req, res, next) => {
   try {
     const b = req.body;
+    // Gating: el plan del comercio puede no incluir integraciones.
+    if (b.integrations) {
+      const tdoc = await Tenant.findById(req.auth.tenantId).select('plan');
+      if (getPlan(tdoc?.plan).features?.integrations === false) {
+        return next(forbidden('Tu plan no incluye integraciones. Mejorá tu plan en Ajustes → Plan y uso.'));
+      }
+    }
     const $set = {}; const $unset = {};
     const setSecret = (path, val) => { if (val) $set[path] = encryptSecret(val); else $unset[path] = 1; };
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireFeature } from '../middleware/feature.js';
 import { validate } from '../middleware/validate.js';
 import { Campaign } from '../models/Campaign.js';
 import { Product } from '../models/Product.js';
@@ -12,7 +13,7 @@ const router = Router();
 router.use(requireAuth);
 
 // Sugerencias de publicaciones de Instagram con IA (sobre el menú del comercio).
-router.post('/suggest', async (req, res, next) => {
+router.post('/suggest', requireFeature('ai'), async (req, res, next) => {
   try {
     const [tenant, products] = await Promise.all([
       Tenant.findById(req.auth.tenantId).select('name'),

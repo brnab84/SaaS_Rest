@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireFeature } from '../middleware/feature.js';
 import { validate } from '../middleware/validate.js';
 import { Expense } from '../models/Expense.js';
 import { ocrInvoice } from '../services/claude.js';
@@ -91,7 +92,7 @@ router.delete('/:id', requireRole('owner', 'admin'), async (req, res, next) => {
 });
 
 // Carga por foto: OCR de factura con Claude → Expense estructurado (queda en 'review').
-router.post('/ocr', requireRole('owner', 'admin'), upload.single('photo'), async (req, res, next) => {
+router.post('/ocr', requireRole('owner', 'admin'), requireFeature('ai'), upload.single('photo'), async (req, res, next) => {
   try {
     if (!req.file) return next(badRequest('Falta la foto de la factura (campo "photo")'));
     if (!req.file.mimetype?.startsWith('image/')) {

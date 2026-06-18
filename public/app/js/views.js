@@ -903,10 +903,27 @@ export async function renderAdmin(host) {
   const reload = () => renderAdmin(host);
   const { totals, plans, tenants } = data;
   const planOpts = Object.keys(plans);
+  const lim = (v) => (v == null ? '' : v);
+
+  const planCard = (id) => {
+    const p = plans[id];
+    const chk = (k) => (p.features?.[k] ? 'checked' : '');
+    return `<div class="panel">
+      <h3 style="margin:0 0 10px">Plan: ${esc(p.label)}</h3>
+      <div class="field"><label>Nombre</label><input class="input" data-pf="${id}.label" value="${esc(p.label)}" /></div>
+      <div class="field"><label>Precio mensual (ARS)</label><input class="input" type="number" min="0" data-pf="${id}.priceMonthly" value="${p.priceMonthly || 0}" /></div>
+      <div class="field"><label>Límite de productos <span class="muted">(vacío = sin límite)</span></label><input class="input" type="number" min="0" data-pf="${id}.products" value="${lim(p.limits?.products)}" /></div>
+      <div class="field"><label>Límite de pedidos/mes <span class="muted">(vacío = sin límite)</span></label><input class="input" type="number" min="0" data-pf="${id}.orders" value="${lim(p.limits?.ordersPerMonth)}" /></div>
+      <label class="field-check"><input type="checkbox" data-pf="${id}.ai" ${chk('ai')} /> IA (importar, OCR, forecast, foto, campañas)</label>
+      <label class="field-check"><input type="checkbox" data-pf="${id}.integrations" ${chk('integrations')} /> Integraciones (WhatsApp / Instagram / Mercado Pago)</label>
+      <label class="field-check"><input type="checkbox" data-pf="${id}.whitelabel" ${chk('whitelabel')} /> Marca blanca (logo propio, sin "RestaurApp")</label>
+      <button class="btn btn-accent btn-sm" data-save-plan="${id}" style="margin-top:12px">Guardar plan ${esc(p.label)}</button>
+    </div>`;
+  };
 
   host.innerHTML = `
     <div class="view-head"><h1>Administración</h1><span class="muted">${num.format(totals.tenants)} comercios</span></div>
-    <p class="help">Panel del dueño de la plataforma (cuenta root). Acá ves <strong>todos los comercios</strong>, su plan y uso, y podés cambiarles el plan a mano. El <strong>MRR estimado</strong> suma las cuotas mensuales de los planes pagos activos.</p>
+    <p class="help">Panel del dueño de la plataforma (cuenta root). Configurá <strong>qué incluye cada plan</strong> (límites y funciones), mirá la actividad de cada comercio y cambiales el plan. El <strong>MRR estimado</strong> suma las cuotas de los planes pagos activos.</p>
     <div class="kpi-grid">
       <div class="kpi"><div class="label">Comercios</div><div class="value">${num.format(totals.tenants)}</div></div>
       <div class="kpi"><div class="label">MRR estimado</div><div class="value">${money.format(totals.mrr || 0)}</div></div>
@@ -914,8 +931,11 @@ export async function renderAdmin(host) {
       <div class="kpi"><div class="label">Pro</div><div class="value">${num.format(totals.byPlan.pro || 0)}</div></div>
       <div class="kpi"><div class="label">Business</div><div class="value">${num.format(totals.byPlan.business || 0)}</div></div>
     </div>
+    <h2 style="margin:22px 0 10px">Planes (qué puede cada uno)</h2>
+    <div class="panel-grid">${planOpts.map(planCard).join('')}</div>
+    <h2 style="margin:22px 0 10px">Comercios</h2>
     ${!tenants.length ? '<div class="panel"><div class="empty">Todavía no hay comercios registrados.</div></div>'
-    : `<div class="list" style="margin-top:16px">${tenants.map((t) => `
+    : `<div class="list">${tenants.map((t) => `
       <div class="list-item">
         <div class="li-main">
           <div class="li-title">${esc(t.name)} <span class="badge badge-muted">${esc(t.slug)}</span></div>
@@ -923,7 +943,8 @@ export async function renderAdmin(host) {
           <div class="li-sub">Alta ${new Date(t.createdAt).toLocaleDateString('es-AR')}</div>
         </div>
         <div class="li-actions">
-          <a class="btn btn-sm" href="${location.origin}/r/${esc(t.slug)}" target="_blank" rel="noopener">Ver landing ↗</a>
+          <button class="btn btn-sm" data-tenant="${t.id}">Detalle</button>
+          <a class="btn btn-sm" href="${location.origin}/r/${esc(t.slug)}" target="_blank" rel="noopener">Landing ↗</a>
           <select class="input" data-plan-for="${t.id}" style="width:auto;min-height:38px;padding:6px 10px">
             ${planOpts.map((p) => `<option value="${p}" ${p === t.plan ? 'selected' : ''}>${esc(plans[p].label)}</option>`).join('')}
           </select>
@@ -931,7 +952,45 @@ export async function renderAdmin(host) {
       </div>`).join('')}</div>`}`;
 
   host.querySelectorAll('[data-plan-for]').forEach((sel) => sel.addEventListener('change', async () => {
-    try { await adminApi.setPlan(sel.dataset.planFor, sel.value); toast('Plan actualizado', 'success'); }
+    try { await adminApi.setPlan(sel.dataset.planFor, sel.value); toast('Plan del comercio actualizado', 'success'); }
     catch (ex) { toast(ex.message || 'No se pudo cambiar el plan', 'error'); reload(); }
+  }));
+
+  host.querySelectorAll('[data-save-plan]').forEach((b) => b.addEventListener('click', async () => {
+    const id = b.dataset.savePlan;
+    const get = (suffix) => host.querySelector(`[data-pf="${id}.${suffix}"]`);
+    const numOrNull = (el) => { const v = (el?.value ?? '').trim(); return v === '' ? null : Number(v); };
+    const body = {
+      label: get('label').value.trim() || id,
+      priceMonthly: Number(get('priceMonthly').value) || 0,
+      limits: { products: numOrNull(get('products')), ordersPerMonth: numOrNull(get('orders')) },
+      features: { ai: get('ai').checked, integrations: get('integrations').checked, whitelabel: get('whitelabel').checked },
+    };
+    try { await adminApi.setPlanConfig(id, body); toast(`Plan ${body.label} guardado`, 'success'); reload(); }
+    catch (ex) { toast(ex.message || 'No se pudo guardar el plan', 'error'); }
+  }));
+
+  host.querySelectorAll('[data-tenant]').forEach((b) => b.addEventListener('click', async () => {
+    let d;
+    try { d = await adminApi.tenantDetail(b.dataset.tenant); }
+    catch (ex) { toast(ex.message || 'No se pudo cargar el detalle', 'error'); return; }
+    const st = d.orders?.byStatus || {};
+    const statusRows = ORDER_FLOW.concat('cancelled').filter((s) => st[s])
+      .map((s) => `<div class="kv"><span>${ORDER_LABEL[s] || s}</span><strong>${num.format(st[s])}</strong></div>`).join('') || '<div class="muted">Sin pedidos.</div>';
+    infoModal({
+      title: `${d.name} · ${d.slug}`,
+      html: `
+        <div class="kv"><span>Dueño</span><strong>${esc(d.ownerEmail)}</strong></div>
+        <div class="kv"><span>Plan</span><strong>${esc(plans[d.plan]?.label || d.plan)}</strong></div>
+        <div class="kv"><span>Alta</span><strong>${new Date(d.createdAt).toLocaleDateString('es-AR')}</strong></div>
+        <div class="kv"><span>Ítems de menú</span><strong>${num.format(d.products)}</strong></div>
+        <div class="kv"><span>Pedidos (total)</span><strong>${num.format(d.orders?.total || 0)}</strong></div>
+        <div class="kv"><span>Ventas cobradas</span><strong>${num.format(d.paid?.count || 0)} · ${money.format(d.paid?.revenue || 0)}</strong></div>
+        <div class="kv"><span>Gastos</span><strong>${num.format(d.expenses?.count || 0)} · ${money.format(d.expenses?.total || 0)}</strong></div>
+        <div class="kv"><span>Campañas</span><strong>${num.format(d.campaigns || 0)}</strong></div>
+        <div class="kv"><span>Último pedido</span><strong>${d.lastOrder ? `#${esc(d.lastOrder.code)} · ${new Date(d.lastOrder.createdAt).toLocaleDateString('es-AR')}` : '—'}</strong></div>
+        <h3 style="margin:14px 0 6px;font-size:14px">Pedidos por estado</h3>
+        ${statusRows}`,
+    });
   }));
 }
