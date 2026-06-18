@@ -20,6 +20,7 @@ import webhookRoutes from './routes/webhooks.js';
 
 export function createApp() {
   const app = express();
+  app.set('trust proxy', 1); // detrás del proxy de Railway: IP real para rate-limit/logs
 
   // CSP a medida: permite estilos inline + Google Fonts (PWA y landing), scripts solo self.
   app.use(helmet({

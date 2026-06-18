@@ -4,9 +4,12 @@ import { connectDB } from './config/db.js';
 import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
 import { startWorker } from './workers/runner.js';
+import { Order } from './models/Order.js';
 
 async function main() {
   await connectDB();
+  // Reconciliar índices de Order (migra el índice de idempotencia de sparse a partial).
+  await Order.syncIndexes().catch((e) => logger.warn({ err: e.message }, 'syncIndexes Order'));
   const role = env.serviceRole;
 
   // Servicio worker: corre la cola y expone solo /health (para el healthcheck de Railway).

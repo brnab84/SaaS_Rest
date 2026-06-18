@@ -35,7 +35,11 @@ const orderSchema = new Schema({
 }, { timestamps: true });
 
 orderSchema.index({ tenantId: 1, status: 1, createdAt: -1 });
-orderSchema.index({ tenantId: 1, 'externalRef.source': 1, 'externalRef.externalId': 1 },
-  { unique: true, sparse: true });
+// Idempotencia SOLO para pedidos con referencia externa (delivery/WhatsApp). Partial (no sparse):
+// los pedidos de landing no tienen externalRef y NO deben entrar al índice único.
+orderSchema.index(
+  { tenantId: 1, 'externalRef.source': 1, 'externalRef.externalId': 1 },
+  { unique: true, partialFilterExpression: { 'externalRef.externalId': { $type: 'string' } } },
+);
 
 export const Order = model('Order', orderSchema);
