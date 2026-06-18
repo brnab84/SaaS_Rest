@@ -70,7 +70,6 @@ function renderApp() {
       <header class="topbar">
         <span class="brand">RestaurApp<span class="dot">.</span></span>
         <div class="spacer"></div>
-        <div id="theme-slot"></div>
         <button class="btn btn-sm" id="logout">Salir</button>
       </header>
       <nav class="tabs">${tabs('tab')}</nav>

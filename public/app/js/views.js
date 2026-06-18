@@ -1,5 +1,6 @@
 import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr } from './api.js';
 import { money, num, esc, formModal, confirmDialog, toast, onInterval } from './ui.js';
+import { renderThemePicker } from './themes.js';
 
 const CAT_ES = { supplies: 'Insumos', rent: 'Alquiler', salary: 'Sueldos', utilities: 'Servicios', other: 'Otros' };
 const EXP_CATS = Object.entries(CAT_ES).map(([value, label]) => ({ value, label }));
@@ -15,6 +16,7 @@ const loading = (host) => { host.innerHTML = '<div class="spinner">Cargando…</
 export async function renderResumen(host) {
   host.innerHTML = `
     <div class="view-head"><h1>Resumen</h1><span class="muted">últimos 30 días</span></div>
+    <p class="help">Vista general de tu negocio: ventas cobradas, pedidos, gastos y ganancia de los últimos 30 días. Los números se llenan a medida que cargás productos y entran pedidos.</p>
     <div id="kpis" class="kpi-grid"><div class="spinner">Cargando…</div></div>
     <div class="panel-grid">
       <div class="panel"><h2>Ventas por día</h2><div id="r-sales">—</div></div>
@@ -30,6 +32,7 @@ export async function renderResumen(host) {
           <button class="btn btn-accent" id="fc-btn">Proyectar</button>
         </div>
       </div>
+      <p class="help" style="margin-top:8px">Cómo funciona: la IA mira tu histórico de pedidos ya cobrados y estima cuánto venderías los próximos días (considera tendencia y día de la semana). <strong>1)</strong> Elegí el horizonte (7, 14 o 30 días). <strong>2)</strong> Tocá "Proyectar". Necesitás al menos una semana con ventas y la clave de IA activada.</p>
       <div id="r-fc" style="margin-top:12px"></div>
     </div>`;
 
@@ -96,6 +99,7 @@ export async function renderMenu(host) {
 
   host.innerHTML = `
     <div class="view-head"><h1>Menú</h1><button class="btn btn-accent" id="add">+ Agregar producto</button></div>
+    <p class="help">Tu carta. Tocá <strong>"+ Agregar producto"</strong> y completá nombre y precio (el costo es opcional y sirve para ver tu margen). Los productos marcados como disponibles aparecen en tu landing pública para que los clientes pidan.</p>
     ${!items.length ? '<div class="panel"><div class="empty">Tu carta está vacía. Agregá tu primer producto para publicarlo en la landing.</div></div>'
     : `<div class="list">${items.map((p) => `
       <div class="list-item">
@@ -128,6 +132,7 @@ export async function renderPedidos(host) {
 
   host.innerHTML = `
     <div class="view-head"><h1>Pedidos</h1><div style="display:flex;gap:10px;align-items:center"><span class="live">● En vivo</span><button class="btn btn-sm" id="refresh">Actualizar</button></div></div>
+    <p class="help">Acá caen los pedidos de tu landing, WhatsApp y delivery. Tocá el botón azul para <strong>avanzar el estado</strong> (Nuevo → Confirmado → En cocina → Listo → En camino → Entregado); al cliente se le avisa por WhatsApp si tenés esa integración. La lista se actualiza sola cada 20 segundos.</p>
     ${!items.length ? '<div class="panel"><div class="empty">No hay pedidos activos. Los pedidos de la landing, WhatsApp y delivery aparecen acá.</div></div>'
     : `<div class="list">${items.map((o) => {
       const next = nextStatus(o.status);
@@ -189,6 +194,7 @@ export async function renderGastos(host) {
         <input type="file" accept=".csv,text/csv" id="csv-file" hidden />
       </div>
     </div>
+    <p class="help">Registrá tus gastos de 4 formas: <strong>+ Cargar gasto</strong> (manual), <strong>📷 Cargar por foto</strong> (la IA lee la factura), <strong>Importar CSV</strong> (varios de una; en Excel usá "Guardar como CSV" con columnas fecha, proveedor, categoria, total) y <strong>Descargar CSV</strong> para llevarte todo.</p>
     ${!items.length ? '<div class="panel"><div class="empty">Sin gastos cargados. Cargá uno manual o sacale una foto a la factura.</div></div>'
     : `<div class="list">${items.map((x) => `
       <div class="list-item">
@@ -288,6 +294,12 @@ export async function renderAjustes(host) {
 
   host.innerHTML = `
     <div class="view-head"><h1>Ajustes</h1><button class="btn btn-accent" id="edit-biz">Editar comercio</button></div>
+    <p class="help">Configurá tu comercio: apariencia, datos, integraciones y tu landing pública.</p>
+    <div class="panel">
+      <h2>Apariencia (tema)</h2>
+      <p class="muted" style="margin:0 0 12px">Elegí el tema visual del panel. Se guarda en tu comercio y <strong>tu landing pública usa el mismo tema</strong>.</p>
+      <div id="theme-cfg"></div>
+    </div>
     <div class="panel">
       <h2>Tu landing pública</h2>
       <p class="muted" style="margin:0 0 10px">La página donde tus clientes ven la carta y hacen pedidos. Compartila por WhatsApp o Instagram.</p>
@@ -316,6 +328,8 @@ export async function renderAjustes(host) {
       <div class="kv"><span>Email</span><strong>${esc(user.email)}</strong></div>
       <div class="kv"><span>Rol</span><strong>${esc(user.role)}</strong></div>
     </div>`;
+
+  renderThemePicker(host.querySelector('#theme-cfg'));
 
   host.querySelector('#copy-link')?.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(storeUrl); toast('Link copiado', 'success'); }
@@ -410,6 +424,7 @@ export async function renderCampanias(host) {
         <button class="btn btn-accent" id="add">+ Nueva campaña</button>
       </div>
     </div>
+    <p class="help">Organizá tu marketing. Tocá <strong>"✨ Sugerir con IA"</strong> y la IA te propone 4 publicaciones de Instagram (texto + hashtags + idea de foto) según tu menú; con "Usar como campaña" la guardás. O creá una manual con <strong>"+ Nueva campaña"</strong>.</p>
     <div id="ideas"></div>
     ${!items.length ? '<div class="panel"><div class="empty">Sin campañas. Creá una o pedí ideas a la IA.</div></div>'
     : `<div class="list">${items.map((c) => `
