@@ -13,6 +13,7 @@
     mercado: { '--bg': '#fbf9f3', '--surface': '#ffffff', '--surface-2': '#f0f3ec', '--text': '#21302a', '--muted': '#6f7d6a', '--accent': '#2f7d4f', '--border': '#e1ddcf' },
     neon: { '--bg': '#0e1116', '--surface': '#161b22', '--surface-2': '#1c2230', '--text': '#e6edf5', '--muted': '#8b97a8', '--accent': '#22d3ee', '--border': '#232b38' },
     tinta: { '--bg': '#ffffff', '--surface': '#ffffff', '--surface-2': '#f4f4f2', '--text': '#111111', '--muted': '#8a8a86', '--accent': '#d7263d', '--border': '#111111' },
+    dragon: { '--bg': '#0d0b08', '--surface': '#181410', '--surface-2': '#241c14', '--text': '#f4ece0', '--muted': '#b09a7e', '--accent': '#eb6608', '--border': '#3a2e20' },
   };
 
   if (!slug) { app.innerHTML = '<div class="center">Comercio no especificado.</div>'; return; }

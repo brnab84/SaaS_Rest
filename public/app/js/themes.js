@@ -6,6 +6,7 @@ export const THEMES = [
   { id: 'mercado', name: 'Mercado', swatches: ['#fbf9f3', '#ffffff', '#2f7d4f', '#c5613b'] },
   { id: 'neon', name: 'Neón', swatches: ['#0e1116', '#161b22', '#22d3ee', '#8b5cf6'] },
   { id: 'tinta', name: 'Tinta', swatches: ['#ffffff', '#f4f4f2', '#d7263d', '#111111'] },
+  { id: 'dragon', name: 'Dragon', swatches: ['#0d0b08', '#181410', '#eb6608', '#f2b121'] },
 ];
 
 const KEY = 'restaurapp.theme';

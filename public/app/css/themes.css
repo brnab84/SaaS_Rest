@@ -111,6 +111,27 @@
   --danger: #fb7185;
 }
 
+[data-theme='dragon'] {
+  --bg: #0d0b08;
+  --surface: #181410;
+  --surface-2: #241c14;
+  --text: #f4ece0;
+  --text-muted: #b09a7e;
+  --accent: #eb6608;
+  --accent-2: #f2b121;
+  --on-accent: #1a0f04;
+  --border-color: #3a2e20;
+  --border-w: 1px;
+  --border-style: solid;
+  --radius: 12px;
+  --shadow: 0 0 0 1px rgba(242, 177, 33, 0.07);
+  --font: 'Montserrat', system-ui, sans-serif;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-mono: 'Space Mono', monospace;
+  --success: #4cc38a;
+  --danger: #e8503a;
+}
+
 [data-theme='tinta'] {
   --bg: #ffffff;
   --surface: #ffffff;
