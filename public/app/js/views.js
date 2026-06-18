@@ -397,6 +397,8 @@ export async function renderAjustes(host) {
   const storeUrl = `${location.origin}/r/${tenant.slug}`;
   const ig = tenant.integrations || {};
   const open = tenant.settings?.storeOpen !== false;
+  const logoUrl = tenant.branding?.logo;
+  const coverUrl = tenant.branding?.cover;
   const badge = (c) => (c ? '<span class="badge" style="color:var(--success)">Conectado</span>' : '<span class="badge badge-muted">Sin conectar</span>');
 
   host.innerHTML = `
@@ -414,6 +416,24 @@ export async function renderAjustes(host) {
       <h2>Apariencia (tema)</h2>
       <p class="muted" style="margin:0 0 12px">Elegí el tema visual del panel. Se guarda en tu comercio y <strong>tu landing pública usa el mismo tema</strong>.</p>
       <div id="theme-cfg"></div>
+    </div>
+    <div class="panel">
+      <h2>Logo y portada</h2>
+      <p class="muted" style="margin:0 0 14px">Tu logo y la imagen de portada de tu landing. Subí una imagen desde tu dispositivo.</p>
+      <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start">
+        <div>
+          <div class="muted" style="font-size:12px;margin-bottom:6px">Logo</div>
+          ${logoUrl ? `<img class="logo-prev" src="${esc(logoUrl)}" alt="logo" />` : '<div class="logo-prev placeholder">sin logo</div>'}
+          <button class="btn btn-sm" id="up-logo" style="display:block;margin-top:8px">${logoUrl ? 'Cambiar' : 'Subir'} logo</button>
+        </div>
+        <div>
+          <div class="muted" style="font-size:12px;margin-bottom:6px">Portada</div>
+          ${coverUrl ? `<div class="cover-prev" style="background-image:url('${esc(coverUrl)}')"></div>` : '<div class="cover-prev placeholder">sin portada</div>'}
+          <button class="btn btn-sm" id="up-cover" style="display:block;margin-top:8px">${coverUrl ? 'Cambiar' : 'Subir'} portada</button>
+        </div>
+      </div>
+      <input type="file" accept="image/*" id="logo-input" hidden />
+      <input type="file" accept="image/*" id="cover-input" hidden />
     </div>
     <div class="panel">
       <h2>Tu landing pública</h2>
@@ -445,6 +465,22 @@ export async function renderAjustes(host) {
     </div>`;
 
   renderThemePicker(host.querySelector('#theme-cfg'));
+
+  const wireUpload = (btnId, inputId, field) => {
+    const input = host.querySelector(`#${inputId}`);
+    host.querySelector(`#${btnId}`)?.addEventListener('click', () => input.click());
+    input?.addEventListener('change', async () => {
+      const file = input.files[0]; if (!file) return;
+      toast('Subiendo imagen…', 'info');
+      try {
+        const r = await uploadImage(file);
+        await tenantApi.update({ branding: { [field]: r.url } });
+        toast('Imagen actualizada', 'success'); renderAjustes(host);
+      } catch (ex) { toast(ex.message || 'No se pudo subir', 'error'); }
+    });
+  };
+  wireUpload('up-logo', 'logo-input', 'logo');
+  wireUpload('up-cover', 'cover-input', 'cover');
 
   host.querySelector('#toggle-store')?.addEventListener('click', async () => {
     try { await tenantApi.update({ settings: { storeOpen: !open } }); toast(open ? 'Tienda cerrada' : 'Tienda abierta', 'success'); renderAjustes(host); }
