@@ -187,16 +187,25 @@
     return PRICE_RE.test((card.textContent || '')) ? card : null;
   }
 
-  // Elige la imagen más grande de la tarjeta (descarta íconos data: y miniaturas chicas).
+  // Elige la imagen más grande de la tarjeta. Soporta <img> y divs con background-image
+  // (WhatsApp suele usar background-image), descartando íconos data: y miniaturas chicas.
   function bestImage(card) {
-    let best = ''; let bestArea = 0;
-    for (const im of card.querySelectorAll('img')) {
+    const cands = [];
+    card.querySelectorAll('img').forEach((im) => {
       const src = im.currentSrc || im.src || '';
-      if (!src || src.startsWith('data:')) continue;
-      const area = (im.naturalWidth || im.width || 0) * (im.naturalHeight || im.height || 0);
-      if (area >= bestArea) { bestArea = area; best = src; }
-    }
-    return best;
+      if (!src || src.startsWith('data:')) return;
+      const r = im.getBoundingClientRect();
+      cands.push({ src, area: (r.width || im.naturalWidth || 0) * (r.height || im.naturalHeight || 0) });
+    });
+    card.querySelectorAll('div,span,a,figure,i').forEach((node) => {
+      const bg = getComputedStyle(node).backgroundImage;
+      const m = bg && bg.match(/url\(["']?(.*?)["']?\)/);
+      if (!m || !m[1] || m[1].startsWith('data:')) return;
+      const r = node.getBoundingClientRect();
+      cands.push({ src: m[1], area: r.width * r.height });
+    });
+    cands.sort((a, b) => b.area - a.area);
+    return cands.length ? cands[0].src : '';
   }
 
   /* ---------- Lista ---------- */
@@ -233,13 +242,17 @@
     const defCat = (document.getElementById('ra-default-cat')?.value || '').trim();
     importing = true;
     let ok = 0; let fail = 0;
+    let imgOk = 0; let imgFail = 0; let imgNone = 0; let lastImgErr = '';
     for (let i = 0; i < valid.length; i += 1) {
       const it = valid[i];
       if (!it.category && defCat) it.category = defCat; // categoría por defecto para todo el import
       setStatus(`Importando ${i + 1}/${valid.length}: ${it.name}…`, 'ok');
       try {
         let photo = '';
-        if (it.imgUrl) { try { photo = await uploadImage(apiBase, token, it.imgUrl, it.name); } catch { /* sin foto */ } }
+        if (it.imgUrl) {
+          try { photo = await uploadImage(apiBase, token, it.imgUrl, it.name); imgOk += 1; }
+          catch (e) { imgFail += 1; lastImgErr = e.message || String(e); }
+        } else { imgNone += 1; }
         await createProduct(apiBase, token, it, photo);
         ok += 1;
       } catch (e) {
@@ -248,7 +261,8 @@
       }
     }
     importing = false;
-    setStatus(`Listo: ${ok} importado(s)${fail ? `, ${fail} con error` : ''}. Revisá tu Menú en RestaurApp.`, ok ? 'ok' : 'warn');
+    const imgInfo = `Imágenes: ${imgOk} ok, ${imgFail} con error, ${imgNone} sin foto${lastImgErr ? ` · ${lastImgErr}` : ''}`;
+    setStatus(`Listo: ${ok} importado(s)${fail ? `, ${fail} con error` : ''}. ${imgInfo}`, ok ? 'ok' : 'warn');
     flash(`${ok} producto(s) importado(s)`);
   }
 
