@@ -70,3 +70,24 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
 .ok h2 { font-family: var(--serif); font-size: 24px; margin: 0 0 6px; }
 .ok .code { font-family: var(--serif); font-weight: 700; font-size: 34px; color: var(--accent); margin: 10px 0; letter-spacing: 0.05em; }
 .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 24px 0; }
+
+/* ===== Seguimiento de pedido ===== */
+.track { padding: 8px 0 24px; }
+.track-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.track-head h2 { font-family: var(--serif); font-size: 22px; margin: 0; }
+.track-head .code { font-family: var(--serif); font-weight: 700; font-size: 22px; color: var(--accent); letter-spacing: 0.04em; }
+.steps { margin: 18px 0 8px; position: relative; }
+.step { display: flex; align-items: flex-start; gap: 14px; padding: 0 0 22px; position: relative; }
+.step:not(:last-child)::before { content: ''; position: absolute; left: 13px; top: 26px; bottom: 0; width: 2px; background: var(--border); }
+.step.done:not(:last-child)::before { background: var(--accent); }
+.step .dot { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; background: var(--surface-2); color: var(--muted); border: 2px solid var(--border); z-index: 1; }
+.step.done .dot { background: var(--accent); color: #fff; border-color: var(--accent); }
+.step.current .dot { background: var(--surface); color: var(--accent); border-color: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+.step.cancelled .dot { background: var(--accent); color: #fff; border-color: var(--accent); }
+.step .s-label { font-weight: 700; font-size: 15px; }
+.step:not(.done):not(.current) .s-label { color: var(--muted); font-weight: 500; }
+.step .s-time { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.track-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.track-actions .btn { margin-top: 0; }
+.track-hint { color: var(--muted); font-size: 12px; text-align: center; margin: 14px 0 0; }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }

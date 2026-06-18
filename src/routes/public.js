@@ -102,6 +102,26 @@ router.post('/:slug/orders', resolveTenant, validate(orderSchema), async (req, r
   } catch (e) { next(e); }
 });
 
+// GET /api/public/:slug/orders/:id — estado del pedido para el seguimiento del cliente.
+// El id del pedido actúa como token (solo lo tiene quien hizo el pedido). Datos acotados.
+router.get('/:slug/orders/:id', resolveTenant, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return next(notFound('Pedido no encontrado'));
+    const order = await Order.findOne({ _id: req.params.id, tenantId: req.tenant._id })
+      .select('code status total items timeline createdAt');
+    if (!order) return next(notFound('Pedido no encontrado'));
+    res.json({
+      id: order._id,
+      code: order.code,
+      status: order.status,
+      total: order.total,
+      items: (order.items || []).map((i) => ({ name: i.name, qty: i.qty })),
+      timeline: (order.timeline || []).map((t) => ({ status: t.status, at: t.at })),
+      createdAt: order.createdAt,
+    });
+  } catch (e) { next(e); }
+});
+
 // POST /api/public/:slug/orders/:id/cancel — el cliente cancela su pedido.
 // Solo permitido mientras siga "nuevo" (sin confirmar por el comercio). El id actúa de token.
 router.post('/:slug/orders/:id/cancel', resolveTenant, async (req, res, next) => {

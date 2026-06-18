@@ -25,6 +25,7 @@ const tenantSchema = new Schema({
   branding: {
     logo: String, cover: String, colors: { type: Map, of: String },
     description: String, theme: String, cuisine: String, // cuisine = rubro (sushi, empanadas, etc.)
+    phone: String, // WhatsApp/teléfono de contacto público (para que el cliente siga su pedido)
   },
 }, { timestamps: true });
 

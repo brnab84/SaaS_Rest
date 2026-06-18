@@ -115,6 +115,7 @@ const patchSchema = z.object({
     colors: z.object({ accent: z.string().max(32).optional() }).optional(),
     theme: z.string().max(24).optional(),
     cuisine: z.string().max(40).optional(),
+    phone: z.string().max(40).optional(),
   }).optional(),
   integrations: z.object({
     whatsapp: z.object({ phoneId: str, wabaId: str, token: str }).optional(),
@@ -146,6 +147,7 @@ router.patch('/', requireRole('owner', 'admin'), validate(patchSchema), async (r
     if (br.colors?.accent !== undefined) $set['branding.colors.accent'] = br.colors.accent;
     if (br.theme !== undefined) $set['branding.theme'] = br.theme;
     if (br.cuisine !== undefined) $set['branding.cuisine'] = br.cuisine;
+    if (br.phone !== undefined) $set['branding.phone'] = br.phone;
 
     const ig = b.integrations || {};
     if (ig.whatsapp) {

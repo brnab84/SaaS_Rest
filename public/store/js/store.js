@@ -4,6 +4,10 @@
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   let fmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
   let tenant = null; let products = []; let byId = {}; const cart = {}; let storeOpen = true;
+  let trackTimer = null; // timer del seguimiento de pedido (se limpia al salir de esa vista)
+  const orderParam = new URLSearchParams(location.search).get('order'); // deep-link a seguimiento
+  const waDigits = (p) => String(p || '').replace(/\D/g, '');
+  const fmtTime = (d) => { try { return new Date(d).toLocaleString('es-AR', { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
 
   // Paletas de los 6 temas (igual que el panel) para que la landing use el mismo tema del comercio.
   const THEME_VARS = {
@@ -34,6 +38,7 @@
       if (accent) document.documentElement.style.setProperty('--accent', accent);
       storeOpen = tenant.storeOpen !== false;
       document.title = `${tenant.name} — Pedí online`;
+      if (orderParam) { showTracking(orderParam); return; } // si vienen con ?order=, mostramos el seguimiento
       render();
     } catch { app.innerHTML = '<div class="center">No se pudo cargar el menú. Probá de nuevo.</div>'; }
   }
@@ -65,6 +70,7 @@
   }
 
   function render() {
+    clearInterval(trackTimer); // por si veníamos del seguimiento
     if (!products.length) { app.innerHTML = header() + '<div class="wrap"><div class="center">Todavía no hay productos en la carta.</div></div>'; return; }
     const cats = {};
     for (const p of products) { const c = p.category || 'Menú'; (cats[c] ||= []).push(p); }
@@ -122,32 +128,84 @@
   }
 
   function showOk(o) {
+    clearInterval(trackTimer);
+    const b = tenant.branding || {};
+    const waBtn = b.phone ? '<button class="btn btn-ghost" id="ok-wa">Seguir por WhatsApp</button>' : '';
     app.innerHTML = `<div class="ok"><div class="check">✓</div><h2>¡Pedido recibido!</h2>
       <p style="color:var(--muted)">${esc(tenant.name)} te va a contactar para coordinar pago y entrega.</p>
       <div class="code">#${esc(o.code)}</div>
       <div class="line total" style="max-width:300px;margin:0 auto"><span>Total</span><span>${fmt.format(o.total)}</span></div>
-      <div id="ok-actions" style="max-width:300px;margin:24px auto 0;display:flex;flex-direction:column;gap:10px">
-        <button class="btn btn-primary" id="again">Hacer otro pedido</button>
-        <button class="btn btn-ghost" id="cancel-order">Cancelar pedido</button>
+      <p style="color:var(--muted);font-size:13px;max-width:320px;margin:16px auto 0">¿Cómo querés seguir tu pedido?</p>
+      <div id="ok-actions" style="max-width:320px;margin:14px auto 0;display:flex;flex-direction:column;gap:10px">
+        <button class="btn btn-primary" id="ok-track">Seguir mi pedido en la app</button>
+        ${waBtn}
+        <button class="btn btn-ghost" id="again">Hacer otro pedido</button>
       </div>
     </div><div class="foot">Pedidos con RestaurApp</div>`;
+    document.getElementById('ok-track').addEventListener('click', () => showTracking(o.id));
     document.getElementById('again').addEventListener('click', () => location.reload());
-    document.getElementById('cancel-order').addEventListener('click', async (e) => {
-      const btn = e.currentTarget;
-      btn.disabled = true; btn.textContent = 'Cancelando…';
+    if (b.phone) document.getElementById('ok-wa').addEventListener('click', () => openWaFollow(o));
+  }
+
+  // Abre WhatsApp del comercio para consultar/seguir el pedido.
+  function openWaFollow(o) {
+    const phone = waDigits(tenant.branding?.phone);
+    const text = encodeURIComponent(`Hola ${tenant.name}! Quiero seguir mi pedido #${o.code}.`);
+    window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+  }
+
+  // Seguimiento propio del pedido: muestra los estados y se actualiza solo.
+  async function showTracking(orderId) {
+    clearInterval(trackTimer);
+    try { history.replaceState(null, '', `${location.pathname}?order=${orderId}`); } catch { /* sin permiso de history */ }
+    app.innerHTML = header() + '<div class="wrap"><div class="center">Cargando tu pedido…</div></div>';
+    const tick = async () => {
+      let o;
       try {
-        const res = await fetch(`/api/public/${encodeURIComponent(slug)}/orders/${o.id}/cancel`, { method: 'POST' });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data?.error?.message || 'No se pudo cancelar');
-        const actions = document.getElementById('ok-actions');
-        actions.innerHTML = '<div style="color:var(--muted);text-align:center">Tu pedido fue cancelado.</div><button class="btn btn-primary" id="again2">Hacer otro pedido</button>';
-        document.getElementById('again2').addEventListener('click', () => location.reload());
-      } catch (ex) {
-        btn.disabled = false; btn.textContent = 'Cancelar pedido';
-        const a = document.getElementById('ok-actions');
-        let m = a.querySelector('.c-err'); if (!m) { m = document.createElement('div'); m.className = 'c-err'; m.style.cssText = 'color:var(--accent);text-align:center;font-size:13px'; a.appendChild(m); }
-        m.textContent = ex.message || 'No se pudo cancelar';
-      }
-    });
+        const res = await fetch(`/api/public/${encodeURIComponent(slug)}/orders/${encodeURIComponent(orderId)}`);
+        if (!res.ok) throw new Error();
+        o = await res.json();
+      } catch { clearInterval(trackTimer); app.innerHTML = header() + '<div class="wrap"><div class="center">No pudimos encontrar tu pedido.</div></div>'; return; }
+      renderTracking(o);
+      if (o.status === 'delivered' || o.status === 'cancelled') clearInterval(trackTimer); // estado final
+    };
+    await tick();
+    trackTimer = setInterval(() => { if (document.visibilityState !== 'hidden') tick(); }, 8000);
+  }
+
+  function renderTracking(o) {
+    const FLOW = [['new', 'Pedido recibido'], ['confirmed', 'Confirmado'], ['preparing', 'En preparación'], ['ready', 'Listo'], ['on_way', 'En camino'], ['delivered', 'Entregado']];
+    const times = {}; (o.timeline || []).forEach((t) => { if (!times[t.status]) times[t.status] = t.at; });
+    const b = tenant.branding || {};
+    const cancelled = o.status === 'cancelled';
+    const idx = FLOW.findIndex(([s]) => s === o.status);
+    const steps = cancelled
+      ? `<div class="step current cancelled"><span class="dot">✕</span><div class="s-main"><div class="s-label">Pedido cancelado</div>${times.cancelled ? `<div class="s-time">${fmtTime(times.cancelled)}</div>` : ''}</div></div>`
+      : FLOW.map(([s, label], i) => {
+        const done = i < idx; const current = i === idx;
+        const t = times[s] ? `<div class="s-time">${fmtTime(times[s])}</div>` : '';
+        return `<div class="step ${done ? 'done' : ''} ${current ? 'current' : ''}"><span class="dot">${done ? '✓' : (current ? '●' : '')}</span><div class="s-main"><div class="s-label">${label}</div>${t}</div></div>`;
+      }).join('');
+    const waBtn = b.phone ? '<button class="btn btn-ghost" id="t-wa">Consultar por WhatsApp</button>' : '';
+    const cancelBtn = o.status === 'new' ? '<button class="btn btn-ghost" id="t-cancel">Cancelar pedido</button>' : '';
+    app.innerHTML = header() + `<div class="wrap"><div class="track">
+      <div class="track-head"><h2>Seguimiento de tu pedido</h2><div class="code">#${esc(o.code)}</div></div>
+      <div class="line total"><span>Total</span><span>${fmt.format(o.total)}</span></div>
+      <div class="steps">${steps}</div>
+      <div class="track-actions">${cancelBtn}${waBtn}<button class="btn btn-primary" id="t-again">Hacer otro pedido</button></div>
+      <p class="track-hint">Esta página se actualiza sola a medida que avanza tu pedido. Guardá el link para volver a verla.</p>
+    </div></div>`;
+    document.getElementById('t-again').addEventListener('click', () => location.reload());
+    if (b.phone) document.getElementById('t-wa').addEventListener('click', () => openWaFollow(o));
+    if (o.status === 'new') {
+      document.getElementById('t-cancel').addEventListener('click', async (e) => {
+        const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Cancelando…';
+        try {
+          const res = await fetch(`/api/public/${encodeURIComponent(slug)}/orders/${o.id}/cancel`, { method: 'POST' });
+          if (!res.ok) throw new Error();
+          showTracking(o.id); // recarga el estado (ahora cancelado)
+        } catch { btn.disabled = false; btn.textContent = 'Cancelar pedido'; }
+      });
+    }
   }
 })();
