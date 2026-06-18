@@ -5,6 +5,16 @@
   let fmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
   let tenant = null; let products = []; let byId = {}; const cart = {};
 
+  // Paletas de los 6 temas (igual que el panel) para que la landing use el mismo tema del comercio.
+  const THEME_VARS = {
+    comanda: { '--bg': '#f3ecd9', '--surface': '#fffdf6', '--surface-2': '#f7f1e1', '--text': '#2b2520', '--muted': '#8a7b58', '--accent': '#c0392b', '--border': '#e0d6bf' },
+    brutalist: { '--bg': '#faf4e4', '--surface': '#ffffff', '--surface-2': '#fff6d6', '--text': '#16130f', '--muted': '#6b5f4d', '--accent': '#e2483d', '--border': '#16130f' },
+    brasa: { '--bg': '#15110d', '--surface': '#211b15', '--surface-2': '#2a2219', '--text': '#f0e6d6', '--muted': '#a8967c', '--accent': '#ff7a1a', '--border': '#3a322a' },
+    mercado: { '--bg': '#fbf9f3', '--surface': '#ffffff', '--surface-2': '#f0f3ec', '--text': '#21302a', '--muted': '#6f7d6a', '--accent': '#2f7d4f', '--border': '#e1ddcf' },
+    neon: { '--bg': '#0e1116', '--surface': '#161b22', '--surface-2': '#1c2230', '--text': '#e6edf5', '--muted': '#8b97a8', '--accent': '#22d3ee', '--border': '#232b38' },
+    tinta: { '--bg': '#ffffff', '--surface': '#ffffff', '--surface-2': '#f4f4f2', '--text': '#111111', '--muted': '#8a8a86', '--accent': '#d7263d', '--border': '#111111' },
+  };
+
   if (!slug) { app.innerHTML = '<div class="center">Comercio no especificado.</div>'; return; }
   load();
 
@@ -17,7 +27,9 @@
       tenant = data.tenant; products = data.products || [];
       byId = Object.fromEntries(products.map((p) => [p._id, p]));
       if (tenant.currency) fmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: tenant.currency, maximumFractionDigits: 0 });
-      const accent = tenant.branding?.colors?.accent;
+      const vars = THEME_VARS[tenant.branding?.theme];
+      if (vars) for (const k in vars) document.documentElement.style.setProperty(k, vars[k]);
+      const accent = tenant.branding?.colors?.accent; // el color custom prevalece sobre el del tema
       if (accent) document.documentElement.style.setProperty('--accent', accent);
       document.title = `${tenant.name} — Pedí online`;
       render();

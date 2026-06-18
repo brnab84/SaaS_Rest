@@ -3,7 +3,7 @@
 import { Order } from '../models/Order.js';
 import { Tenant } from '../models/Tenant.js';
 import { getPayment } from '../services/mercadopago.js';
-import { resolveSecret } from '../utils/secrets.js';
+import { resolveTenantSecret } from '../utils/secrets.js';
 import { generateOrderCode } from '../utils/orderCode.js';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
@@ -12,7 +12,8 @@ import { logger } from '../utils/logger.js';
 export async function processMpPayment({ tenantId, paymentId }) {
   const tenant = await Tenant.findById(tenantId);
   if (!tenant) return;
-  const accessToken = resolveSecret(tenant.settings?.mercadopago?.tokenRef) || env.mp.accessToken;
+  const mp = tenant.settings?.mercadopago;
+  const accessToken = resolveTenantSecret(mp?.accessTokenEnc, mp?.tokenRef) || env.mp.accessToken;
   if (!accessToken) { logger.warn({ tenantId }, 'MP sin access token'); return; }
 
   const pay = await getPayment({ accessToken, paymentId });

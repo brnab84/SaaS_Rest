@@ -205,10 +205,12 @@ export async function renderGastos(host) {
 /* ===================== AJUSTES ===================== */
 export async function renderAjustes(host) {
   loading(host);
-  let data;
-  try { data = await me(); } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
-  const { tenant, user } = data;
+  let tenant; let user;
+  try { const [t, m] = await Promise.all([tenantApi.get(), me()]); tenant = t; user = m.user; }
+  catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const storeUrl = `${location.origin}/r/${tenant.slug}`;
+  const ig = tenant.integrations || {};
+  const badge = (c) => (c ? '<span class="badge" style="color:var(--success)">Conectado</span>' : '<span class="badge badge-muted">Sin conectar</span>');
 
   host.innerHTML = `
     <div class="view-head"><h1>Ajustes</h1><button class="btn btn-accent" id="edit-biz">Editar comercio</button></div>
@@ -227,6 +229,13 @@ export async function renderAjustes(host) {
       <div class="kv"><span>Slug</span><strong class="mono">${esc(tenant.slug)}</strong></div>
       <div class="kv"><span>Plan</span><strong>${esc(tenant.plan || 'free')}</strong></div>
       <div class="kv"><span>Moneda</span><strong>${esc(tenant.settings?.currency || 'ARS')}</strong></div>
+    </div>
+    <div class="panel">
+      <h2>Integraciones</h2>
+      <p class="muted" style="margin:0 0 12px">Conectá tus cuentas. Los tokens se guardan cifrados y no se vuelven a mostrar.</p>
+      <div class="kv"><span>WhatsApp Business</span><span style="display:flex;gap:8px;align-items:center">${badge(ig.whatsapp?.connected)}<button class="btn btn-sm" data-cfg="whatsapp">Configurar</button></span></div>
+      <div class="kv"><span>Instagram</span><span style="display:flex;gap:8px;align-items:center">${badge(ig.instagram?.connected)}<button class="btn btn-sm" data-cfg="instagram">Configurar</button></span></div>
+      <div class="kv"><span>Mercado Pago</span><span style="display:flex;gap:8px;align-items:center">${badge(ig.mercadopago?.connected)}<button class="btn btn-sm" data-cfg="mercadopago">Configurar</button></span></div>
     </div>
     <div class="panel">
       <h2>Usuario</h2>
@@ -258,5 +267,43 @@ export async function renderAjustes(host) {
       toast('Comercio actualizado', 'success');
       renderAjustes(host);
     },
+  }));
+
+  // Omite campos vacíos (un token en blanco = no cambiar, no borrar).
+  const clean = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== '' && v != null));
+  const CFG = {
+    whatsapp: {
+      title: 'WhatsApp Business',
+      fields: [
+        { name: 'phoneId', label: 'Phone Number ID', value: ig.whatsapp?.phoneId },
+        { name: 'wabaId', label: 'WABA ID', value: ig.whatsapp?.wabaId },
+        { name: 'token', label: 'Token de acceso', type: 'password', placeholder: ig.whatsapp?.connected ? '•••• (dejar vacío para no cambiar)' : 'Pegá el token', help: 'Se guarda cifrado.' },
+      ],
+      build: (v) => ({ whatsapp: clean({ phoneId: v.phoneId, wabaId: v.wabaId, token: v.token }) }),
+    },
+    instagram: {
+      title: 'Instagram',
+      fields: [
+        { name: 'igUserId', label: 'IG User ID', value: ig.instagram?.igUserId },
+        { name: 'token', label: 'Token de acceso', type: 'password', placeholder: ig.instagram?.connected ? '•••• (dejar vacío para no cambiar)' : 'Pegá el token', help: 'Se guarda cifrado.' },
+      ],
+      build: (v) => ({ instagram: clean({ igUserId: v.igUserId, token: v.token }) }),
+    },
+    mercadopago: {
+      title: 'Mercado Pago',
+      fields: [
+        { name: 'publicKey', label: 'Public key', value: ig.mercadopago?.publicKey },
+        { name: 'accessToken', label: 'Access token', type: 'password', placeholder: ig.mercadopago?.connected ? '•••• (dejar vacío para no cambiar)' : 'Pegá el access token', help: 'Se guarda cifrado.' },
+        { name: 'webhookSecret', label: 'Webhook secret', type: 'password', placeholder: ig.mercadopago?.webhookConfigured ? '••••' : 'Opcional', help: 'Para validar la firma de los webhooks.' },
+      ],
+      build: (v) => ({ mercadopago: clean({ publicKey: v.publicKey, accessToken: v.accessToken, webhookSecret: v.webhookSecret }) }),
+    },
+  };
+  host.querySelectorAll('[data-cfg]').forEach((b) => b.addEventListener('click', () => {
+    const c = CFG[b.dataset.cfg];
+    formModal({
+      title: c.title, submitLabel: 'Guardar', fields: c.fields,
+      onSubmit: async (v) => { await tenantApi.update({ integrations: c.build(v) }); toast('Integración guardada', 'success'); renderAjustes(host); },
+    });
   }));
 }

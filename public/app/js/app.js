@@ -1,5 +1,5 @@
-import { applyTheme, getTheme, renderThemePicker } from './themes.js';
-import { login, register, getAuthConfig, logout, isAuthed } from './api.js';
+import { applyTheme, getTheme, renderThemePicker, setThemeChangeHandler } from './themes.js';
+import { login, register, getAuthConfig, logout, isAuthed, tenantApi } from './api.js';
 import { renderResumen, renderMenu, renderPedidos, renderGastos, renderAjustes } from './views.js';
 import { clearTimers } from './ui.js';
 
@@ -22,9 +22,24 @@ const NAV = [
 ];
 
 applyTheme(getTheme());
+// Al cambiar el tema, persistirlo en el comercio (así la landing usa el mismo).
+setThemeChangeHandler((id) => { if (isAuthed()) tenantApi.update({ branding: { theme: id } }).catch(() => {}); });
 registerSW();
 window.addEventListener('hashchange', onRoute);
 start();
+syncTenantTheme();
+
+// Aplica el tema guardado en el comercio (si el usuario lo cambió desde otro dispositivo).
+function syncTenantTheme() {
+  if (!isAuthed()) return;
+  tenantApi.get().then((t) => {
+    if (t.branding?.theme && t.branding.theme !== getTheme()) {
+      applyTheme(t.branding.theme);
+      const slot = document.getElementById('theme-slot');
+      if (slot) renderThemePicker(slot);
+    }
+  }).catch(() => {});
+}
 
 function start() { isAuthed() ? renderApp() : renderLogin(); }
 function currentRoute() { const h = location.hash.replace('#/', ''); return NAV.some((n) => n.id === h) ? h : 'resumen'; }

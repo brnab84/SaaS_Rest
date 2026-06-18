@@ -22,4 +22,6 @@ export const env = {
   serviceRole: process.env.SERVICE_ROLE || 'api',
   // Parámetro de admin: ¿se aceptan registros de comercios nuevos? (toggle desde Railway)
   registrationOpen: process.env.REGISTRATION_OPEN !== 'false',
+  // Clave para cifrar secretos por tenant en DB (tokens de WA/IG/MP). Fallback a JWT_SECRET.
+  encryptionKey: process.env.ENCRYPTION_KEY || process.env.JWT_SECRET,
 };

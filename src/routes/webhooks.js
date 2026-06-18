@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { env } from '../config/env.js';
 import { Tenant } from '../models/Tenant.js';
-import { resolveSecret } from '../utils/secrets.js';
+import { resolveTenantSecret } from '../utils/secrets.js';
 import { verifyMpSignature, verifyMetaSignature } from '../utils/signatures.js';
 import { enqueueJob } from '../jobs/queue.js';
 import { logger } from '../utils/logger.js';
@@ -13,7 +13,8 @@ router.post('/mp/:tenantId', async (req, res) => {
   const tenant = await Tenant.findById(req.params.tenantId).catch(() => null);
   if (!tenant) return res.sendStatus(404);
 
-  const secret = resolveSecret(tenant.settings?.mercadopago?.webhookSecretRef) || env.mp.webhookSecret;
+  const mp = tenant.settings?.mercadopago;
+  const secret = resolveTenantSecret(mp?.webhookSecretEnc, mp?.webhookSecretRef) || env.mp.webhookSecret;
   if (secret) {
     const ok = verifyMpSignature({
       signatureHeader: req.headers['x-signature'],

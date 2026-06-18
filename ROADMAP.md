@@ -46,6 +46,16 @@ Leyenda: `[x]` hecho · `[~]` parcial · `[ ]` pendiente. Actualizado: 2026-06-1
 - [ ] Límites por plan + métricas de uso
 **Entregable:** producto cobrable y listo para crecer.
 
+## Fase 7 — Panel de administración + crecimiento  🟡 en curso
+- [~] Panel de config: integraciones por comercio (Instagram, WhatsApp Business, Mercado Pago)
+- [~] Tema/branding configurable y persistente; el tema del panel = el de la landing
+- [ ] Creador de campañas (UI sobre Campaign)
+- [ ] Sugerencias de publicaciones de Instagram con IA
+- [ ] Gastos por foto con IA o carga manual desde foto
+- [ ] Exportar gastos (CSV) e importar gastos desde Excel/CSV
+- [ ] Sección dedicada de forecast
+**Entregable:** el comercio autogestiona integraciones, branding, marketing y finanzas.
+
 ---
 
 ## Infra y producto ya hecho (no estaba en el roadmap original)

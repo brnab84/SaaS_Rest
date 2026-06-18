@@ -6,13 +6,17 @@ const tenantSchema = new Schema({
   plan: { type: String, enum: ['free', 'pro', 'business'], default: 'free' },
   settings: {
     currency: { type: String, default: 'ARS' },
-    // tokenRef = clave a un secret externo (Railway env / vault), nunca el token en claro
-    whatsapp: { phoneId: String, wabaId: String, tokenRef: String },
-    instagram: { igUserId: String, tokenRef: String },
-    mercadopago: { tokenRef: String, webhookSecretRef: String, publicKey: String },
+    // tokenRef = clave a un secret en env/vault. tokenEnc = secreto cifrado (AES-GCM) en DB
+    // para tokens cargados por el comercio desde el panel. Nunca el token en claro.
+    whatsapp: { phoneId: String, wabaId: String, tokenRef: String, tokenEnc: String },
+    instagram: { igUserId: String, tokenRef: String, tokenEnc: String },
+    mercadopago: {
+      tokenRef: String, webhookSecretRef: String, publicKey: String,
+      accessTokenEnc: String, webhookSecretEnc: String,
+    },
     pedidosya: { vendorId: String, integrationActive: { type: Boolean, default: false } },
   },
-  branding: { logo: String, colors: { type: Map, of: String }, description: String },
+  branding: { logo: String, colors: { type: Map, of: String }, description: String, theme: String },
 }, { timestamps: true });
 
 export const Tenant = model('Tenant', tenantSchema);

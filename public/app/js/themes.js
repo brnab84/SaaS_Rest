@@ -11,6 +11,10 @@ export const THEMES = [
 const KEY = 'restaurapp.theme';
 const DEFAULT = 'comanda';
 
+// Callback opcional que se dispara cuando el usuario cambia el tema (para persistirlo).
+let changeHandler = null;
+export function setThemeChangeHandler(fn) { changeHandler = fn; }
+
 export function getTheme() {
   try { return localStorage.getItem(KEY) || DEFAULT; } catch { return DEFAULT; }
 }
@@ -50,6 +54,7 @@ export function renderThemePicker(container) {
     b.addEventListener('click', () => {
       applyTheme(t.id);
       renderThemePicker(container); // refresca estado seleccionado + nombre
+      changeHandler?.(t.id); // persistir (p. ej. en el tenant)
     });
     row.appendChild(b);
   }

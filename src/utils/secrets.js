@@ -6,3 +6,11 @@ export function resolveSecret(ref) {
   if (!ref) return null;
   return process.env[ref] ?? null;
 }
+
+import { decryptSecret } from './crypto.js';
+
+// Resuelve un secreto de tenant: primero el cifrado en DB (panel), luego el tokenRef (env/vault).
+export function resolveTenantSecret(encBlob, ref) {
+  if (encBlob) { const v = decryptSecret(encBlob); if (v) return v; }
+  return resolveSecret(ref);
+}

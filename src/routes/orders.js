@@ -7,7 +7,7 @@ import { Tenant } from '../models/Tenant.js';
 import { createPaymentLink } from '../services/mercadopago.js';
 import { sendText } from '../services/whatsapp.js';
 import { notFound } from '../utils/errors.js';
-import { resolveSecret } from '../utils/secrets.js';
+import { resolveTenantSecret } from '../utils/secrets.js';
 import { env } from '../config/env.js';
 
 const router = Router();
@@ -51,7 +51,8 @@ router.post('/:id/payment-link', validate(payLinkSchema), async (req, res, next)
     const order = await Order.findOne({ _id: req.params.id, tenantId: req.auth.tenantId });
     if (!order) return next(notFound('Pedido no encontrado'));
     const tenant = await Tenant.findById(req.auth.tenantId);
-    const accessToken = resolveSecret(tenant.settings.mercadopago?.tokenRef) || env.mp.accessToken;
+    const mp = tenant.settings?.mercadopago;
+    const accessToken = resolveTenantSecret(mp?.accessTokenEnc, mp?.tokenRef) || env.mp.accessToken;
     const amount = req.body.amount ?? order.total;
 
     const { id, init_point } = await createPaymentLink({ accessToken, order, amount });
@@ -75,7 +76,7 @@ async function notifyCustomer(tenantId, order) {
   const wa = tenant.settings.whatsapp;
   if (!wa?.phoneId) return;
   await sendText({
-    phoneId: wa.phoneId, token: resolveSecret(wa.tokenRef),
+    phoneId: wa.phoneId, token: resolveTenantSecret(wa.tokenEnc, wa.tokenRef),
     to: order.customer.phone, body: `${msg} (Pedido ${order.code})`,
   });
 }
