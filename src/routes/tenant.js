@@ -17,7 +17,7 @@ function publicView(doc) {
     name: t.name,
     slug: t.slug,
     plan: t.plan,
-    settings: { currency: s.currency },
+    settings: { currency: s.currency, storeOpen: s.storeOpen !== false },
     branding: t.branding || {},
     integrations: {
       whatsapp: { phoneId: s.whatsapp?.phoneId, wabaId: s.whatsapp?.wabaId, connected: !!s.whatsapp?.tokenEnc },
@@ -38,7 +38,7 @@ router.get('/', async (req, res, next) => {
 const str = z.string().optional();
 const patchSchema = z.object({
   name: z.string().min(2).optional(),
-  settings: z.object({ currency: z.string().min(2).max(8).optional() }).optional(),
+  settings: z.object({ currency: z.string().min(2).max(8).optional(), storeOpen: z.boolean().optional() }).optional(),
   branding: z.object({
     description: z.string().max(300).optional(),
     logo: z.string().url().optional().or(z.literal('')),
@@ -60,6 +60,7 @@ router.patch('/', requireRole('owner', 'admin'), validate(patchSchema), async (r
 
     if (b.name !== undefined) $set.name = b.name;
     if (b.settings?.currency !== undefined) $set['settings.currency'] = b.settings.currency;
+    if (b.settings?.storeOpen !== undefined) $set['settings.storeOpen'] = b.settings.storeOpen;
 
     const br = b.branding || {};
     if (br.description !== undefined) $set['branding.description'] = br.description;

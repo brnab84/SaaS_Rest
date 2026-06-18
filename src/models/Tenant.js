@@ -6,6 +6,7 @@ const tenantSchema = new Schema({
   plan: { type: String, enum: ['free', 'pro', 'business'], default: 'free' },
   settings: {
     currency: { type: String, default: 'ARS' },
+    storeOpen: { type: Boolean, default: true }, // ¿la tienda acepta pedidos ahora?
     // tokenRef = clave a un secret en env/vault. tokenEnc = secreto cifrado (AES-GCM) en DB
     // para tokens cargados por el comercio desde el panel. Nunca el token en claro.
     whatsapp: { phoneId: String, wabaId: String, tokenRef: String, tokenEnc: String },

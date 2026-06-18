@@ -1,5 +1,5 @@
 import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr } from './api.js';
-import { money, num, esc, formModal, confirmDialog, toast, onInterval } from './ui.js';
+import { money, num, esc, formModal, confirmDialog, toast, onInterval, clearTimers } from './ui.js';
 import { renderThemePicker } from './themes.js';
 
 const CAT_ES = { supplies: 'Insumos', rent: 'Alquiler', salary: 'Sueldos', utilities: 'Servicios', other: 'Otros' };
@@ -78,8 +78,9 @@ function listChart(data, name, val, emptyMsg, amtFmt) {
 /* ===================== MENÚ (PRODUCTOS) ===================== */
 export async function renderMenu(host) {
   loading(host);
-  let items;
-  try { items = await productsApi.list(); } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  let items; let info;
+  try { const [p, m] = await Promise.all([productsApi.list(), me()]); items = p; info = m; }
+  catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const reload = () => renderMenu(host);
 
   const openForm = (p) => formModal({
@@ -98,7 +99,12 @@ export async function renderMenu(host) {
   });
 
   host.innerHTML = `
-    <div class="view-head"><h1>Menú</h1><button class="btn btn-accent" id="add">+ Agregar producto</button></div>
+    <div class="view-head"><h1>Menú</h1>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="share-wa">Compartir por WhatsApp</button>
+        <button class="btn btn-accent" id="add">+ Agregar producto</button>
+      </div>
+    </div>
     <p class="help">Tu carta. Tocá <strong>"+ Agregar producto"</strong> y completá nombre y precio (el costo es opcional y sirve para ver tu margen). Los productos marcados como disponibles aparecen en tu landing pública para que los clientes pidan.</p>
     ${!items.length ? '<div class="panel"><div class="empty">Tu carta está vacía. Agregá tu primer producto para publicarlo en la landing.</div></div>'
     : `<div class="list">${items.map((p) => `
@@ -116,6 +122,11 @@ export async function renderMenu(host) {
       </div>`).join('')}</div>`}`;
 
   host.querySelector('#add').addEventListener('click', () => openForm(null));
+  host.querySelector('#share-wa').addEventListener('click', () => {
+    const avail = items.filter((p) => p.available !== false);
+    if (!avail.length) { toast('Cargá productos disponibles primero', 'info'); return; }
+    window.open(`https://wa.me/?text=${encodeURIComponent(buildMenuText(info.tenant, avail))}`, '_blank');
+  });
   host.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(items.find((x) => x._id === b.dataset.edit))));
   host.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
     const p = items.find((x) => x._id === b.dataset.del);
@@ -124,10 +135,17 @@ export async function renderMenu(host) {
 }
 
 /* ===================== PEDIDOS ===================== */
-export async function renderPedidos(host) {
-  loading(host);
+export async function renderPedidos(host, opts = {}) {
+  clearTimers(); // un solo timer activo: evita el parpadeo por timers acumulados
+  if (!opts.silent) loading(host);
   let items;
-  try { items = await ordersApi.list(); } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  try {
+    items = await ordersApi.list();
+  } catch (e) {
+    if (!opts.silent) host.innerHTML = `<div class="empty">${esc(e.message)} — reintentando…</div>`;
+    scheduleOrders(host); // se recupera solo en el próximo ciclo
+    return;
+  }
   const reload = () => renderPedidos(host);
 
   host.innerHTML = `
@@ -158,8 +176,14 @@ export async function renderPedidos(host) {
     if (await confirmDialog('¿Cancelar este pedido?')) { await ordersApi.setStatus(b.dataset.cancel, 'cancelled'); toast('Pedido cancelado', 'success'); reload(); }
   }));
 
-  // Auto-refresco mientras la pestaña esté visible (cocina en vivo).
-  onInterval(() => { if (document.visibilityState === 'visible' && document.body.contains(host)) renderPedidos(host); }, 20000);
+  scheduleOrders(host);
+}
+
+// Un único timer de auto-refresco silencioso (sin spinner, sin acumular timers).
+function scheduleOrders(host) {
+  onInterval(() => {
+    if (document.visibilityState === 'visible' && document.body.contains(host)) renderPedidos(host, { silent: true });
+  }, 20000);
 }
 
 /* ===================== GASTOS ===================== */
@@ -234,6 +258,19 @@ export async function renderGastos(host) {
   }));
 }
 
+// --- Compartir menú por WhatsApp ---
+function buildMenuText(tenant, products) {
+  const cats = {};
+  for (const p of products) { const c = p.category || 'Menú'; (cats[c] ||= []).push(p); }
+  let t = `🍽️ *${tenant.name}* — Menú\n`;
+  for (const [cat, list] of Object.entries(cats)) {
+    t += `\n*${cat}*\n`;
+    for (const p of list) t += `• ${p.name} — ${money.format(p.price)}\n`;
+  }
+  t += `\n📲 Pedí online: ${location.origin}/r/${tenant.slug}`;
+  return t;
+}
+
 // --- CSV de gastos (export/import client-side) ---
 function downloadExpensesCSV(rows) {
   const cell = (s) => { const v = String(s ?? ''); return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
@@ -290,11 +327,20 @@ export async function renderAjustes(host) {
   catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const storeUrl = `${location.origin}/r/${tenant.slug}`;
   const ig = tenant.integrations || {};
+  const open = tenant.settings?.storeOpen !== false;
   const badge = (c) => (c ? '<span class="badge" style="color:var(--success)">Conectado</span>' : '<span class="badge badge-muted">Sin conectar</span>');
 
   host.innerHTML = `
     <div class="view-head"><h1>Ajustes</h1><button class="btn btn-accent" id="edit-biz">Editar comercio</button></div>
-    <p class="help">Configurá tu comercio: apariencia, datos, integraciones y tu landing pública.</p>
+    <p class="help">Configurá tu comercio: estado, apariencia, datos, integraciones y tu landing pública.</p>
+    <div class="panel">
+      <h2>Estado de la tienda</h2>
+      <p class="muted" style="margin:0 0 12px">Si está <strong>cerrada</strong>, tu landing muestra "Cerrado" y no acepta pedidos nuevos.</p>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span class="badge" style="color:${open ? 'var(--success)' : 'var(--danger)'}">${open ? '🟢 Abierta' : '🔴 Cerrada'}</span>
+        <button class="btn ${open ? 'btn-danger' : 'btn-accent'}" id="toggle-store">${open ? 'Cerrar tienda' : 'Abrir tienda'}</button>
+      </div>
+    </div>
     <div class="panel">
       <h2>Apariencia (tema)</h2>
       <p class="muted" style="margin:0 0 12px">Elegí el tema visual del panel. Se guarda en tu comercio y <strong>tu landing pública usa el mismo tema</strong>.</p>
@@ -330,6 +376,11 @@ export async function renderAjustes(host) {
     </div>`;
 
   renderThemePicker(host.querySelector('#theme-cfg'));
+
+  host.querySelector('#toggle-store')?.addEventListener('click', async () => {
+    try { await tenantApi.update({ settings: { storeOpen: !open } }); toast(open ? 'Tienda cerrada' : 'Tienda abierta', 'success'); renderAjustes(host); }
+    catch (ex) { toast(ex.message || 'No se pudo cambiar el estado', 'error'); }
+  });
 
   host.querySelector('#copy-link')?.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(storeUrl); toast('Link copiado', 'success'); }

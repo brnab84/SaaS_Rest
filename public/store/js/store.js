@@ -3,7 +3,7 @@
   const slug = decodeURIComponent((location.pathname.split('/r/')[1] || '').replace(/\/+$/, ''));
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   let fmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
-  let tenant = null; let products = []; let byId = {}; const cart = {};
+  let tenant = null; let products = []; let byId = {}; const cart = {}; let storeOpen = true;
 
   // Paletas de los 6 temas (igual que el panel) para que la landing use el mismo tema del comercio.
   const THEME_VARS = {
@@ -31,6 +31,7 @@
       if (vars) for (const k in vars) document.documentElement.style.setProperty(k, vars[k]);
       const accent = tenant.branding?.colors?.accent; // el color custom prevalece sobre el del tema
       if (accent) document.documentElement.style.setProperty('--accent', accent);
+      storeOpen = tenant.storeOpen !== false;
       document.title = `${tenant.name} — Pedí online`;
       render();
     } catch { app.innerHTML = '<div class="center">No se pudo cargar el menú. Probá de nuevo.</div>'; }
@@ -44,12 +45,16 @@
   }
   function prodHTML(p) {
     const q = cart[p._id] || 0;
+    const stepper = storeOpen
+      ? `<div class="stepper">${q > 0 ? `<button class="qbtn" data-dec aria-label="Quitar">−</button><span class="qty">${q}</span>` : ''}<button class="qbtn add" data-inc aria-label="Agregar">+</button></div>`
+      : '';
     return `<div class="prod" data-id="${p._id}">
       <div class="info"><div class="name">${esc(p.name)}</div>${p.description ? `<div class="desc">${esc(p.description)}</div>` : ''}<div class="price">${fmt.format(p.price)}</div></div>
-      <div class="stepper">${q > 0 ? `<button class="qbtn" data-dec aria-label="Quitar">−</button><span class="qty">${q}</span>` : ''}<button class="qbtn add" data-inc aria-label="Agregar">+</button></div>
+      ${stepper}
     </div>`;
   }
   function cartbarHTML() {
+    if (!storeOpen) return '';
     const { count, total } = totals();
     return `<div class="cartbar ${count ? 'show' : ''}" id="cartbar"><span class="c-count">${count} ${count === 1 ? 'ítem' : 'ítems'} · ${fmt.format(total)}</span><span class="c-go">Hacer pedido</span></div>`;
   }
@@ -59,6 +64,7 @@
     const cats = {};
     for (const p of products) { const c = p.category || 'Menú'; (cats[c] ||= []).push(p); }
     let html = header() + '<div class="wrap">';
+    if (!storeOpen) html += '<div class="closed">🔴 Cerrado ahora · No se reciben pedidos en este momento.</div>';
     for (const [cat, items] of Object.entries(cats)) { html += `<div class="cat">${esc(cat)}</div>`; for (const p of items) html += prodHTML(p); }
     html += '</div>' + cartbarHTML();
     app.innerHTML = html;

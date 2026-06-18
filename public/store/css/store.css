@@ -17,6 +17,7 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
 .hero h1 { font-family: var(--serif); font-weight: 700; font-size: 30px; margin: 6px 0 4px; }
 .hero p { color: var(--muted); margin: 0; font-size: 14px; }
 
+.closed { background: var(--surface-2); color: var(--accent); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; text-align: center; font-weight: 700; margin-bottom: 14px; }
 .cat { font-family: var(--serif); font-weight: 600; font-size: 20px; margin: 22px 0 10px; }
 .prod {
   display: flex; gap: 12px; align-items: center; background: var(--surface);

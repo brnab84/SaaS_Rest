@@ -30,6 +30,7 @@ router.get('/:slug/menu', resolveTenant, async (req, res, next) => {
         name: req.tenant.name,
         slug: req.tenant.slug,
         currency: req.tenant.settings?.currency || 'ARS',
+        storeOpen: req.tenant.settings?.storeOpen !== false,
         branding: req.tenant.branding || {},
       },
       products,
@@ -55,6 +56,9 @@ const orderSchema = z.object({
 // El total SIEMPRE se recalcula en el server desde los precios reales (nunca confiar en el cliente).
 router.post('/:slug/orders', resolveTenant, validate(orderSchema), async (req, res, next) => {
   try {
+    if (req.tenant.settings?.storeOpen === false) {
+      return next(badRequest('La tienda está cerrada en este momento. Volvé a intentar más tarde.'));
+    }
     const { customer, items: requested } = req.body;
     const ids = [...new Set(requested.map((i) => i.productId))];
     const products = await Product.find({
