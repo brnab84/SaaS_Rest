@@ -1,5 +1,5 @@
 import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto, importProductsFromWhatsApp, ordersStreamUrl, adminApi } from './api.js';
-import { money, num, esc, formModal, confirmDialog, toast, onInterval, clearTimers, onCleanup, playPing, pushNotify, requestNotifyPermission, soundEnabled, setSoundEnabled, getTone, setTone } from './ui.js';
+import { money, num, esc, formModal, confirmDialog, infoModal, toast, onInterval, clearTimers, onCleanup, playPing, pushNotify, requestNotifyPermission, soundEnabled, setSoundEnabled, getTone, setTone } from './ui.js';
 import { renderThemePicker } from './themes.js';
 
 const CAT_ES = { supplies: 'Insumos', rent: 'Alquiler', salary: 'Sueldos', utilities: 'Servicios', other: 'Otros' };
@@ -158,6 +158,7 @@ export async function renderMenu(host) {
         <button class="btn" id="share-wa">Compartir por WhatsApp</button>
         <button class="btn" id="import-ai">Importar con IA</button>
         <button class="btn" id="import-wa">Importar de WhatsApp</button>
+        <button class="btn" id="ext-wa">🧩 Extensión WhatsApp</button>
         <button class="btn" id="import-prod">Importar CSV</button>
         <button class="btn btn-accent" id="add">+ Agregar producto</button>
         <input type="file" accept=".csv,text/csv" id="prod-csv" hidden />
@@ -217,6 +218,25 @@ export async function renderMenu(host) {
     let ok = 0;
     for (const r of rows) { try { await productsApi.create({ name: r.name, price: r.price, category: r.category || undefined, available: true }); ok += 1; } catch {} }
     toast(`${ok} productos importados`, 'success'); reload();
+  });
+
+  host.querySelector('#ext-wa').addEventListener('click', async () => {
+    let meta = { version: '', file: '' };
+    try { meta = await fetch('/downloads/ext-version.json', { cache: 'no-store' }).then((r) => r.json()); } catch {}
+    infoModal({
+      title: 'Importar desde WhatsApp Web (extensión Chrome)',
+      html: `
+        <p class="muted" style="margin:0 0 12px">Extensión de Chrome que lee el catálogo abierto en WhatsApp Web e importa los productos (precio, descripción, categoría e imagen) <strong>directo a tu cuenta</strong>, sin descargar archivos.</p>
+        <a class="btn btn-accent" href="${esc(meta.file || '#')}" download style="display:inline-flex;margin:0 0 14px">⬇ Descargar extensión${meta.version ? ` v${esc(meta.version)}` : ''}</a>
+        <ol style="margin:0;padding-left:18px;font-size:13px;line-height:1.75">
+          <li>Descomprimí el <strong>.zip</strong> en una carpeta.</li>
+          <li>Entrá a <span class="mono">chrome://extensions</span> y activá <strong>Modo de desarrollador</strong>.</li>
+          <li><strong>Cargar descomprimida</strong> → elegí la carpeta.</li>
+          <li>Dejá <strong>esta app abierta y con tu sesión iniciada</strong> (la extensión la usa para importar).</li>
+          <li>Abrí <strong>web.whatsapp.com</strong> con el catálogo abierto → botón <strong>🍽️ RestaurApp</strong> → <em>Leer visible</em> o <em>Modo clic</em> → <strong>Importar a RestaurApp</strong>.</li>
+        </ol>
+        <p class="muted" style="font-size:12px;margin-top:12px">Los productos aparecen acá en el Menú. Si alguno no se detecta, usá "Modo clic". Recordá tu límite de productos según el plan.</p>`,
+    });
   });
 
   host.querySelector('#import-wa').addEventListener('click', () => {

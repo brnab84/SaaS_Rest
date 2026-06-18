@@ -1,36 +1,35 @@
-# RestaurApp — Lector de catálogo de WhatsApp (extensión de Chrome)
+# RestaurApp — Importar catálogo de WhatsApp (extensión de Chrome)
 
-Lee los productos del **catálogo abierto en WhatsApp Web** y los exporta a un **CSV**
-con columnas `nombre, precio, categoria, descripcion`, listo para subir en
-**RestaurApp → Menú → Importar CSV**.
+Lee los productos del **catálogo abierto en WhatsApp Web** y los **importa directo a tu
+cuenta de RestaurApp**: nombre, precio, descripción, categoría e **imagen**. Sin CSV.
 
-> Funciona sobre tu propia cuenta/catálogo, en tu navegador. No envía nada a ningún
-> servidor: solo genera un archivo CSV en tu PC.
+> Usa tu propia sesión: un "bridge" corre en la pestaña de RestaurApp y copia tu token a
+> la extensión. No envía datos a terceros; solo crea productos en tu cuenta.
 
-## Instalar (modo desarrollador)
-1. Abrí Chrome → `chrome://extensions`
-2. Activá **"Modo de desarrollador"** (arriba a la derecha).
-3. Clic en **"Cargar descomprimida"** y elegí esta carpeta (`extension/wa-catalog`).
-4. Listo: ya queda instalada.
+## Instalar
+1. Descargá el .zip desde la app: **Menú → 🧩 Extensión WhatsApp → Descargar extensión**.
+2. Descomprimilo en una carpeta.
+3. Chrome → `chrome://extensions` → activá **Modo de desarrollador**.
+4. **Cargar descomprimida** → elegí la carpeta.
 
 ## Usar
-1. Entrá a **https://web.whatsapp.com** e iniciá sesión.
-2. Abrí el **catálogo** (el de tu negocio o el de otra cuenta que estés viendo).
-3. Abajo a la derecha aparece el botón **🍽️ RestaurApp**. Tocalo.
-4. Elegí:
-   - **Leer visible**: toma todos los productos que estén en pantalla. Scrolleá el
-     catálogo para que carguen más y volvé a tocar "Leer visible".
-   - **Modo clic**: tocá cada producto que quieras agregar (de a uno). Volvé a tocar
-     el botón para apagarlo.
-5. Revisá/edita la lista (nombre, precio, categoría). Podés borrar los que no quieras.
-6. Tocá **Descargar CSV**.
-7. En RestaurApp: **Menú → Importar CSV** y subí el archivo.
+1. Dejá **RestaurApp abierta y con sesión iniciada** en una pestaña (la extensión usa esa sesión).
+2. Abrí **https://web.whatsapp.com** y abrí el **catálogo**.
+3. Botón **🍽️ RestaurApp** (abajo a la derecha).
+   - **Leer visible**: toma los productos en pantalla (scrolleá para cargar más).
+   - **Modo clic**: tocá cada producto de a uno.
+4. Revisá/edita la lista (nombre, precio, categoría).
+5. **Importar a RestaurApp** → crea los productos en tu Menú (sube las imágenes a tu cuenta).
 
 ## Notas y límites
-- WhatsApp Web tiene el HTML **ofuscado y cambia seguido**, así que la detección usa
-  heurísticas (patrones de precio + estructura). Si algún producto no se detecta con
-  "Leer visible", usá **Modo clic**.
-- El **CSV de RestaurApp importa nombre, precio y categoría**; la descripción se incluye
-  en el archivo como referencia pero hoy no se importa por CSV.
-- Si los precios salen mal, avisá con una captura del producto en WhatsApp Web para
-  ajustar el patrón de moneda.
+- WhatsApp Web tiene el HTML **ofuscado y cambia seguido**; la detección es heurística.
+  Si algún producto no sale con "Leer visible", usá **Modo clic**.
+- Si no aparece "Conectado a tu sesión", abrí/logueate en RestaurApp en otra pestaña.
+- Las imágenes que WhatsApp sirve sin permiso de origen cruzado pueden no importarse; el
+  producto igual se crea (sin foto). Avisá con una captura para ajustar.
+- Respeta el **límite de productos de tu plan** (si lo superás, frena con aviso).
+
+## Desarrollo
+El paquete se versiona desde `extension/wa-catalog/manifest.json`. Para regenerar el .zip
+descargable: `powershell -ExecutionPolicy Bypass -File scripts/build-ext.ps1`
+(genera `public/downloads/restaurapp-wa-catalog-v<version>.zip` + `ext-version.json`).

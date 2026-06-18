@@ -146,6 +146,19 @@ export async function requestNotifyPermission() {
   try { if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission(); } catch {}
 }
 
+// Modal informativo (solo lectura, con HTML confiable provisto por la vista).
+export function infoModal({ title, html, closeLabel = 'Cerrar' }) {
+  const ov = overlay();
+  ov.card.innerHTML = `
+    <div class="modal-head"><h3>${esc(title)}</h3><button class="modal-x" aria-label="Cerrar" data-x>✕</button></div>
+    <div class="modal-body">${html}</div>
+    <div class="modal-footer"><button class="btn btn-accent" data-close>${esc(closeLabel)}</button></div>`;
+  ov.card.querySelector('[data-x]').onclick = ov.remove;
+  ov.card.querySelector('[data-close]').onclick = ov.remove;
+  ov.onBackdrop = ov.remove;
+  return ov;
+}
+
 // Crea el overlay base y devuelve { card, remove, onBackdrop }.
 function overlay() {
   const ov = document.createElement('div');
