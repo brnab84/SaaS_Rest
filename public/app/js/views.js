@@ -1,5 +1,5 @@
-import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage } from './api.js';
-import { money, num, esc, formModal, confirmDialog, toast, onInterval, clearTimers } from './ui.js';
+import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto } from './api.js';
+import { money, num, esc, formModal, confirmDialog, toast, onInterval, clearTimers, playPing, pushNotify, requestNotifyPermission, soundEnabled, setSoundEnabled, getTone, setTone } from './ui.js';
 import { renderThemePicker } from './themes.js';
 
 const CAT_ES = { supplies: 'Insumos', rent: 'Alquiler', salary: 'Sueldos', utilities: 'Servicios', other: 'Otros' };
@@ -8,7 +8,16 @@ const EXP_VALID = new Set(Object.keys(CAT_ES));
 
 const ORDER_FLOW = ['new', 'confirmed', 'preparing', 'ready', 'on_way', 'delivered'];
 const ORDER_LABEL = { new: 'Nuevo', confirmed: 'Confirmado', preparing: 'En cocina', ready: 'Listo', on_way: 'En camino', delivered: 'Entregado', cancelled: 'Cancelado' };
+// Mensajes parametrizables que se envían al cliente por WhatsApp en cada estado (deben coincidir con el backend).
+const MSG_LABELS = { confirmed: 'Confirmado', preparing: 'En cocina', ready: 'Listo', on_way: 'En camino', delivered: 'Entregado' };
+const DEFAULT_MSG = { confirmed: 'Confirmamos tu pedido ✅', preparing: 'Tu pedido está en marcha 👨‍🍳', ready: '¡Tu pedido está listo! ✅', on_way: 'Tu pedido va en camino 🛵', delivered: '¡Gracias por tu compra! 🙌' };
+const TONE_LABELS = { campana: 'Campana', timbre: 'Timbre', arpa: 'Arpa' };
 const nextStatus = (s) => { const i = ORDER_FLOW.indexOf(s); return i >= 0 && i < ORDER_FLOW.length - 1 ? ORDER_FLOW[i + 1] : null; };
+
+// Para avisar de pedidos nuevos: recordamos los ids ya vistos en esta sesión (null = primera carga).
+let _seenOrderIds = null;
+const waNumber = (phone) => String(phone || '').replace(/\D/g, '');
+const waReply = (o) => `Hola ${o.customer?.name || ''}! Te escribimos por tu pedido #${o.code}.`;
 
 const loading = (host) => { host.innerHTML = '<div class="spinner">Cargando…</div>'; };
 
@@ -78,46 +87,43 @@ function listChart(data, name, val, emptyMsg, amtFmt) {
 /* ===================== MENÚ (PRODUCTOS) ===================== */
 export async function renderMenu(host) {
   loading(host);
-  let items; let info;
-  try { const [p, m] = await Promise.all([productsApi.list(), me()]); items = p; info = m; }
+  let items; let tenant;
+  try { const [p, t] = await Promise.all([productsApi.list(), tenantApi.get()]); items = p; tenant = t; }
   catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const reload = () => renderMenu(host);
+  // Categorías para el dropdown: las definidas por el comercio + las ya usadas en productos.
+  const cats = [...new Set([...(tenant.settings?.categories || []), ...items.map((p) => p.category).filter(Boolean)])];
 
-  const openForm = (p) => formModal({
-    title: p ? 'Editar producto' : 'Nuevo producto',
-    submitLabel: p ? 'Guardar' : 'Crear',
-    values: p || { available: true },
-    fields: [
-      { name: 'name', label: 'Nombre', required: true },
-      { name: 'price', label: 'Precio', type: 'number', step: '0.01', min: 0, required: true },
-      { name: 'cost', label: 'Costo (opcional)', type: 'number', step: '0.01', min: 0, help: 'Para calcular tu margen' },
-      { name: 'category', label: 'Categoría', placeholder: 'Ej. Pizzas, Bebidas' },
-      { name: 'description', label: 'Descripción', type: 'textarea' },
-      { name: 'photoFile', label: 'Foto del plato', type: 'file', accept: 'image/*', help: 'Subí una imagen (o pegá una URL abajo)' },
-      { name: 'photo', label: 'Foto (URL, opcional)', placeholder: 'https://…' },
-      { name: 'available', label: 'Disponible', type: 'checkbox' },
-    ],
-    onSubmit: async (v) => {
-      if (v.photoFile) { const r = await uploadImage(v.photoFile); v.photo = r.url; }
-      delete v.photoFile;
-      if (p) await productsApi.update(p._id, v); else await productsApi.create(v);
-      toast(p ? 'Producto actualizado' : 'Producto creado', 'success'); reload();
-    },
-  });
+  const openForm = (p) => {
+    if (p?.category && !cats.includes(p.category)) cats.push(p.category);
+    return formModal({
+      title: p?._id ? 'Editar producto' : 'Nuevo producto',
+      submitLabel: p?._id ? 'Guardar' : 'Crear',
+      values: p || { available: true },
+      fields: [
+        { name: 'name', label: 'Nombre', required: true },
+        { name: 'price', label: 'Precio', type: 'number', step: '0.01', min: 0, required: true },
+        { name: 'cost', label: 'Costo (opcional)', type: 'number', step: '0.01', min: 0, help: 'Para calcular tu margen' },
+        { name: 'category', label: 'Categoría', type: 'select', options: [{ value: '', label: '(sin categoría)' }, ...cats.map((c) => ({ value: c, label: c }))] },
+        { name: 'description', label: 'Descripción', type: 'textarea' },
+        { name: 'photoFile', label: 'Foto del plato', type: 'file', accept: 'image/*', help: 'Subí una imagen (o pegá una URL abajo)' },
+        { name: 'photo', label: 'Foto (URL, opcional)', placeholder: 'https://…' },
+        { name: 'available', label: 'Disponible', type: 'checkbox' },
+      ],
+      onSubmit: async (v) => {
+        if (v.photoFile) { const r = await uploadImage(v.photoFile); v.photo = r.url; }
+        delete v.photoFile;
+        if (p?._id) await productsApi.update(p._id, v); else await productsApi.create(v);
+        toast(p?._id ? 'Producto actualizado' : 'Producto creado', 'success'); reload();
+      },
+    });
+  };
 
-  host.innerHTML = `
-    <div class="view-head"><h1>Menú</h1>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn" id="share-wa">Compartir por WhatsApp</button>
-        <button class="btn" id="import-ai">Importar con IA</button>
-        <button class="btn" id="import-prod">Importar CSV</button>
-        <button class="btn btn-accent" id="add">+ Agregar producto</button>
-        <input type="file" accept=".csv,text/csv" id="prod-csv" hidden />
-      </div>
-    </div>
-    <p class="help">Tu carta. Tocá <strong>"+ Agregar producto"</strong> y completá nombre y precio (el costo es opcional y sirve para ver tu margen). Los productos marcados como disponibles aparecen en tu landing pública para que los clientes pidan.</p>
-    ${!items.length ? '<div class="panel"><div class="empty">Tu carta está vacía. Agregá tu primer producto para publicarlo en la landing.</div></div>'
-    : `<div class="list">${items.map((p) => `
+  // Agrupar por categoría para navegación (chips → secciones)
+  const groups = {};
+  for (const p of items) { const c = p.category || 'Sin categoría'; (groups[c] ||= []).push(p); }
+  const groupNames = Object.keys(groups);
+  const prodRow = (p) => `
       <div class="list-item">
         ${p.photo ? `<img class="thumb" src="${esc(p.photo)}" alt="" loading="lazy" />` : ''}
         <div class="li-main">
@@ -131,13 +137,52 @@ export async function renderMenu(host) {
           <button class="btn btn-sm" data-edit="${p._id}">Editar</button>
           <button class="btn btn-sm btn-danger" data-del="${p._id}">Eliminar</button>
         </div>
-      </div>`).join('')}</div>`}`;
+      </div>`;
 
+  host.innerHTML = `
+    <div class="view-head"><h1>Menú</h1>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="from-photo">📷 Desde foto</button>
+        <button class="btn" id="share-wa">Compartir por WhatsApp</button>
+        <button class="btn" id="import-ai">Importar con IA</button>
+        <button class="btn" id="import-prod">Importar CSV</button>
+        <button class="btn btn-accent" id="add">+ Agregar producto</button>
+        <input type="file" accept=".csv,text/csv" id="prod-csv" hidden />
+      </div>
+    </div>
+    <p class="help">Tu carta. Tocá <strong>"+ Agregar producto"</strong> y completá nombre y precio (el costo es opcional y sirve para ver tu margen). Con <strong>"📷 Desde foto"</strong> la IA crea el producto a partir de una imagen. Los productos disponibles aparecen en tu landing pública.</p>
+    ${!items.length ? '<div class="panel"><div class="empty">Tu carta está vacía. Agregá tu primer producto para publicarlo en la landing.</div></div>'
+    : `${groupNames.length > 1 ? `<div class="catnav">${groupNames.map((c, i) => `<button class="chip" data-sec="msec-${i}">${esc(c)}</button>`).join('')}</div>` : ''}
+    ${groupNames.map((c, i) => `<div class="cat-group" id="msec-${i}"><div class="cat-h">${esc(c)} <span class="muted">· ${groups[c].length}</span></div><div class="list">${groups[c].map(prodRow).join('')}</div></div>`).join('')}`}`;
+
+  host.querySelectorAll('.catnav .chip').forEach((b) => b.addEventListener('click', () => host.querySelector(`#${b.dataset.sec}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })));
   host.querySelector('#add').addEventListener('click', () => openForm(null));
+  host.querySelector('#from-photo').addEventListener('click', () => formModal({
+    title: 'Crear artículo desde foto',
+    submitLabel: 'Analizar con IA',
+    fields: [
+      { name: 'file', label: 'Foto del plato', type: 'file', accept: 'image/*', required: true, help: 'La IA detecta el nombre, una descripción y sugiere categoría. Vos confirmás el precio.' },
+    ],
+    onSubmit: async (v) => {
+      if (!v.file) throw new Error('Subí una foto');
+      toast('Analizando la foto con IA…', 'info');
+      let data; let photoUrl = '';
+      try {
+        [data, photoUrl] = await Promise.all([
+          productFromPhoto(v.file),
+          uploadImage(v.file).then((r) => r.url).catch(() => ''),
+        ]);
+      } catch (ex) {
+        throw new Error(ex.status === 503 ? 'La IA no está configurada (falta ANTHROPIC_API_KEY).' : (ex.message || 'No se pudo analizar la foto'));
+      }
+      // Abrimos el formulario prellenado para que el usuario confirme el precio y guarde.
+      openForm({ name: data.name || '', description: data.description || '', category: data.category || '', available: true, photo: photoUrl });
+    },
+  }));
   host.querySelector('#share-wa').addEventListener('click', () => {
     const avail = items.filter((p) => p.available !== false);
     if (!avail.length) { toast('Cargá productos disponibles primero', 'info'); return; }
-    window.open(`https://wa.me/?text=${encodeURIComponent(buildMenuText(info.tenant, avail))}`, '_blank');
+    window.open(`https://wa.me/?text=${encodeURIComponent(buildMenuText(tenant, avail))}`, '_blank');
   });
   host.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(items.find((x) => x._id === b.dataset.edit))));
   host.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
@@ -195,6 +240,21 @@ export async function renderPedidos(host, opts = {}) {
   }
   const reload = () => renderPedidos(host);
 
+  // Aviso de pedidos nuevos (sonido + notificación), solo después de la primera carga de la sesión.
+  if (_seenOrderIds === null) {
+    _seenOrderIds = new Set(items.map((o) => o._id));
+  } else {
+    const fresh = items.filter((o) => o.status === 'new' && !_seenOrderIds.has(o._id));
+    if (fresh.length) {
+      playPing();
+      const o = fresh[0];
+      const extra = fresh.length > 1 ? ` (+${fresh.length - 1} más)` : '';
+      pushNotify('Nuevo pedido', `#${o.code} · ${o.customer?.name || 'Cliente'} · ${money.format(o.total)}${extra}`);
+      toast(`🔔 Nuevo pedido #${o.code}${extra}`, 'success');
+    }
+    for (const o of items) _seenOrderIds.add(o._id);
+  }
+
   host.innerHTML = `
     <div class="view-head"><h1>Pedidos</h1><div style="display:flex;gap:10px;align-items:center"><span class="live">● En vivo</span><button class="btn btn-sm" id="refresh">Actualizar</button></div></div>
     <p class="help">Acá caen los pedidos de tu landing, WhatsApp y delivery. Tocá el botón azul para <strong>avanzar el estado</strong> (Nuevo → Confirmado → En cocina → Listo → En camino → Entregado); al cliente se le avisa por WhatsApp si tenés esa integración. La lista se actualiza sola cada 20 segundos.</p>
@@ -210,6 +270,7 @@ export async function renderPedidos(host, opts = {}) {
         </div>
         <div class="li-amt">${money.format(o.total)}</div>
         <div class="li-actions">
+          ${o.customer?.phone ? `<a class="btn btn-sm" href="https://wa.me/${waNumber(o.customer.phone)}?text=${encodeURIComponent(waReply(o))}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}
           ${next ? `<button class="btn btn-sm btn-accent" data-next="${o._id}" data-to="${next}">${ORDER_LABEL[next]} ▸</button>` : ''}
           ${!paid && o.status !== 'cancelled' ? `<button class="btn btn-sm" data-pay="${o._id}">Cobrado</button>` : ''}
           ${o.status !== 'cancelled' && o.status !== 'delivered' ? `<button class="btn btn-sm btn-danger" data-cancel="${o._id}">Cancelar</button>` : ''}
@@ -245,17 +306,26 @@ export async function renderGastos(host) {
   try { items = await expensesApi.list(); } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const reload = () => renderGastos(host);
 
-  const openForm = () => formModal({
-    title: 'Cargar gasto',
+  const openForm = (x) => formModal({
+    title: x ? 'Editar gasto' : 'Cargar gasto',
     submitLabel: 'Guardar',
-    values: { date: new Date().toISOString().slice(0, 10), category: 'supplies' },
+    values: x
+      ? { vendor: x.vendor, total: x.total, category: x.category || 'other', date: new Date(x.date).toISOString().slice(0, 10) }
+      : { date: new Date().toISOString().slice(0, 10), category: 'supplies' },
     fields: [
       { name: 'vendor', label: 'Proveedor' },
       { name: 'total', label: 'Total', type: 'number', step: '0.01', min: 0, required: true },
       { name: 'category', label: 'Categoría', type: 'select', options: EXP_CATS },
       { name: 'date', label: 'Fecha', type: 'date' },
     ],
-    onSubmit: async (v) => { await expensesApi.create(v); toast('Gasto cargado', 'success'); reload(); },
+    onSubmit: async (v) => {
+      if (x) {
+        const patch = { ...v };
+        if (x.ocrStatus === 'review') patch.ocrStatus = 'done'; // editar confirma el OCR
+        await expensesApi.update(x._id, patch); toast('Gasto actualizado', 'success');
+      } else { await expensesApi.create(v); toast('Gasto cargado', 'success'); }
+      reload();
+    },
   });
 
   host.innerHTML = `
@@ -279,7 +349,7 @@ export async function renderGastos(host) {
           <div class="li-sub">${esc(CAT_ES[x.category] || x.category || 'Otros')} · ${new Date(x.date).toLocaleDateString('es-AR')}</div>
         </div>
         <div class="li-amt">${money.format(x.total)}</div>
-        <div class="li-actions"><button class="btn btn-sm btn-danger" data-del="${x._id}">Eliminar</button></div>
+        <div class="li-actions"><button class="btn btn-sm" data-edit="${x._id}">Editar</button><button class="btn btn-sm btn-danger" data-del="${x._id}">Eliminar</button></div>
       </div>`).join('')}</div>`}`;
 
   host.querySelector('#add').addEventListener('click', openForm);
@@ -305,6 +375,7 @@ export async function renderGastos(host) {
     }
     toast(`${ok} gastos importados`, 'success'); reload();
   });
+  host.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(items.find((x) => x._id === b.dataset.edit))));
   host.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
     if (await confirmDialog('¿Eliminar este gasto?')) { await expensesApi.remove(b.dataset.del); toast('Gasto eliminado', 'success'); reload(); }
   }));
@@ -399,6 +470,8 @@ export async function renderAjustes(host) {
   const open = tenant.settings?.storeOpen !== false;
   const logoUrl = tenant.branding?.logo;
   const coverUrl = tenant.branding?.cover;
+  const cats = tenant.settings?.categories || [];
+  const om = tenant.settings?.orderMessages || {};
   const badge = (c) => (c ? '<span class="badge" style="color:var(--success)">Conectado</span>' : '<span class="badge badge-muted">Sin conectar</span>');
 
   host.innerHTML = `
@@ -432,6 +505,35 @@ export async function renderAjustes(host) {
           <label class="btn btn-sm" style="display:inline-flex;margin-top:8px;cursor:pointer">${coverUrl ? 'Cambiar' : 'Subir'} portada<input type="file" accept="image/*" id="cover-input" hidden /></label>
         </div>
       </div>
+    </div>
+    <div class="panel">
+      <h2>Categorías del menú</h2>
+      <p class="muted" style="margin:0 0 12px">Definí las secciones de tu carta. Aparecen como opciones al cargar productos y como filtros en tu landing.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        ${cats.length ? cats.map((c) => `<span class="badge badge-muted" style="display:inline-flex;align-items:center;gap:6px;font-size:13px">${esc(c)}<button data-rmcat="${esc(c)}" aria-label="Quitar" style="background:none;border:none;color:var(--danger);cursor:pointer;font-weight:700;font-size:14px;line-height:1">×</button></span>`).join('') : '<span class="muted" style="font-size:13px">Sin categorías todavía.</span>'}
+      </div>
+      <div style="display:flex;gap:8px">
+        <input class="input" id="new-cat" placeholder="Nueva categoría (ej. Entradas)" style="flex:1" />
+        <button class="btn btn-accent" id="add-cat">Agregar</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Notificaciones de pedidos</h2>
+      <p class="muted" style="margin:0 0 12px">Cuando entra un pedido nuevo, la app suena y te avisa (tené la sección <strong>Pedidos</strong> abierta). Elegí el tono.</p>
+      <label class="field-check"><input type="checkbox" id="snd-on" ${soundEnabled() ? 'checked' : ''}/> Sonido al recibir un pedido</label>
+      <div class="field" style="margin-top:10px"><label>Tono</label>
+        <select class="input" id="snd-tone">${Object.entries(TONE_LABELS).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        <button class="btn btn-sm" id="snd-test">▶ Probar sonido</button>
+        <button class="btn btn-sm" id="notif-perm">Activar avisos del sistema</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Mensajes a clientes (WhatsApp)</h2>
+      <p class="muted" style="margin:0 0 12px">Personalizá lo que recibe el cliente por WhatsApp en cada estado del pedido. Si lo dejás vacío, se usa el texto por defecto. Requiere WhatsApp Business conectado.</p>
+      ${Object.entries(MSG_LABELS).map(([k, label]) => `<div class="kv"><span>${label}</span><span class="muted" style="text-align:right;max-width:62%">${esc(om[k] || DEFAULT_MSG[k])}</span></div>`).join('')}
+      <button class="btn btn-sm" id="edit-msgs" style="margin-top:12px">Editar mensajes</button>
     </div>
     <div class="panel">
       <h2>Tu landing pública</h2>
@@ -477,6 +579,40 @@ export async function renderAjustes(host) {
   };
   wireUpload('logo-input', 'logo');
   wireUpload('cover-input', 'cover');
+
+  const saveCats = async (next) => {
+    try { await tenantApi.update({ settings: { categories: next } }); renderAjustes(host); }
+    catch (ex) { toast(ex.message || 'No se pudo guardar', 'error'); }
+  };
+  const newCat = host.querySelector('#new-cat');
+  const addCat = () => {
+    const v = (newCat.value || '').trim();
+    if (!v) return;
+    if (cats.some((c) => c.toLowerCase() === v.toLowerCase())) { toast('Esa categoría ya existe', 'info'); return; }
+    saveCats([...cats, v]);
+  };
+  host.querySelector('#add-cat')?.addEventListener('click', addCat);
+  newCat?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addCat(); } });
+  host.querySelectorAll('[data-rmcat]').forEach((b) => b.addEventListener('click', () => saveCats(cats.filter((c) => c !== b.dataset.rmcat))));
+
+  // Notificaciones de pedidos (preferencias por dispositivo)
+  const sndTone = host.querySelector('#snd-tone'); if (sndTone) sndTone.value = getTone();
+  host.querySelector('#snd-on')?.addEventListener('change', (e) => { setSoundEnabled(e.target.checked); toast(e.target.checked ? 'Sonido activado' : 'Sonido desactivado', 'success'); });
+  sndTone?.addEventListener('change', () => { setTone(sndTone.value); playPing(true); });
+  host.querySelector('#snd-test')?.addEventListener('click', () => playPing(true));
+  host.querySelector('#notif-perm')?.addEventListener('click', async () => {
+    await requestNotifyPermission();
+    const ok = 'Notification' in window && Notification.permission === 'granted';
+    toast(ok ? 'Avisos del sistema activados' : 'No se concedió el permiso', ok ? 'success' : 'info');
+  });
+
+  // Mensajes a clientes por estado (WhatsApp)
+  host.querySelector('#edit-msgs')?.addEventListener('click', () => formModal({
+    title: 'Mensajes por estado',
+    submitLabel: 'Guardar',
+    fields: Object.entries(MSG_LABELS).map(([k, label]) => ({ name: k, label, type: 'textarea', value: om[k] || '', placeholder: DEFAULT_MSG[k] })),
+    onSubmit: async (v) => { await tenantApi.update({ settings: { orderMessages: v } }); toast('Mensajes guardados', 'success'); renderAjustes(host); },
+  }));
 
   host.querySelector('#toggle-store')?.addEventListener('click', async () => {
     try { await tenantApi.update({ settings: { storeOpen: !open } }); toast(open ? 'Tienda cerrada' : 'Tienda abierta', 'success'); renderAjustes(host); }

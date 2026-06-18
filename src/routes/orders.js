@@ -75,16 +75,21 @@ router.post('/:id/pay', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-const STATUS_MSG = {
+// Mensajes por defecto por estado (el comercio puede sobreescribirlos en Ajustes).
+export const DEFAULT_STATUS_MSG = {
+  confirmed: 'Confirmamos tu pedido ✅',
   preparing: 'Tu pedido está en marcha 👨‍🍳',
   ready: '¡Tu pedido está listo! ✅',
   on_way: 'Tu pedido va en camino 🛵',
+  delivered: '¡Gracias por tu compra! 🙌',
 };
 
 async function notifyCustomer(tenantId, order) {
-  const msg = STATUS_MSG[order.status];
-  if (!msg || !order.customer?.phone) return;
+  if (!order.customer?.phone) return;
   const tenant = await Tenant.findById(tenantId);
+  const custom = tenant.settings?.orderMessages || {};
+  const msg = (custom[order.status] && String(custom[order.status]).trim()) || DEFAULT_STATUS_MSG[order.status];
+  if (!msg) return;
   const wa = tenant.settings.whatsapp;
   if (!wa?.phoneId) return;
   await sendText({

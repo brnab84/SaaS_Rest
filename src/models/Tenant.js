@@ -7,6 +7,11 @@ const tenantSchema = new Schema({
   settings: {
     currency: { type: String, default: 'ARS' },
     storeOpen: { type: Boolean, default: true }, // ¿la tienda acepta pedidos ahora?
+    categories: { type: [String], default: undefined }, // categorías del menú (dropdown)
+    // Mensajes que se envían al cliente por WhatsApp según el estado del pedido (parametrizables).
+    orderMessages: {
+      confirmed: String, preparing: String, ready: String, on_way: String, delivered: String,
+    },
     // tokenRef = clave a un secret en env/vault. tokenEnc = secreto cifrado (AES-GCM) en DB
     // para tokens cargados por el comercio desde el panel. Nunca el token en claro.
     whatsapp: { phoneId: String, wabaId: String, tokenRef: String, tokenEnc: String },

@@ -230,6 +230,40 @@ export async function extractMenu({ fileBase64, mediaType, isPdf, text }) {
   return parseJson(res);
 }
 
+// --- Crear un producto a partir de la foto del plato -----------------------
+
+const productPhotoSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    name: { type: 'string', description: 'Nombre comercial corto del plato' },
+    description: { type: 'string', description: 'Descripción breve y apetitosa (1-2 frases)' },
+    category: { type: 'string', description: 'Sección/categoría sugerida del menú' },
+  },
+  required: ['name'],
+};
+
+// imageBase64: foto del plato; categories: categorías existentes para sugerir una coherente.
+export async function extractProductFromPhoto({ imageBase64, mediaType, categories = [] }) {
+  const catHint = categories.length
+    ? `Si encaja, usá una de estas categorías existentes: ${categories.join(', ')}. Si ninguna aplica, sugerí una nueva.`
+    : 'Sugerí una categoría/sección breve (ej. Entradas, Rolls, Bebidas).';
+  const res = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 1024,
+    thinking: { type: 'adaptive' },
+    output_config: { format: { type: 'json_schema', schema: productPhotoSchema }, effort: 'low' },
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+        { type: 'text', text: `Esta es la foto de un plato/producto de un restaurante. Identificá qué es y proponé un nombre comercial atractivo, una descripción breve y apetitosa, y una categoría. ${catHint} No inventes el precio.` },
+      ],
+    }],
+  });
+  return parseJson(res);
+}
+
 // El SDK puebla parsed_output cuando se usa output_config.format; con fallback a parsear el texto.
 function parseJson(res) {
   if (res.parsed_output) return res.parsed_output;

@@ -91,6 +91,55 @@ function fieldHTML(f, val) {
   return `<div class="field"><label>${esc(f.label)}</label>${input}${f.help ? `<div class="hint" style="margin-top:4px">${esc(f.help)}</div>` : ''}</div>`;
 }
 
+/* ===== Notificaciones de pedidos (sonido + aviso del sistema) ===== */
+const SOUND_KEY = 'restaurapp.sound';   // 'on' | 'off' (default on)
+const TONE_KEY = 'restaurapp.tone';     // 'campana' | 'timbre' | 'arpa'
+export function soundEnabled() { try { return localStorage.getItem(SOUND_KEY) !== 'off'; } catch { return true; } }
+export function setSoundEnabled(on) { try { localStorage.setItem(SOUND_KEY, on ? 'on' : 'off'); } catch {} }
+export function getTone() { try { return localStorage.getItem(TONE_KEY) || 'campana'; } catch { return 'campana'; } }
+export function setTone(t) { try { localStorage.setItem(TONE_KEY, t); } catch {} }
+
+// Secuencia de notas por tono (frecuencias en Hz).
+const TONES = {
+  campana: [880, 1320],
+  timbre: [1568, 1568],
+  arpa: [659, 784, 988],
+};
+
+let _audioCtx = null;
+// Beep sintetizado con WebAudio: no requiere archivos de audio. force ignora la preferencia (para "Probar").
+export function playPing(force = false) {
+  if (!force && !soundEnabled()) return;
+  try {
+    _audioCtx ??= new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _audioCtx;
+    if (ctx.state === 'suspended') ctx.resume();
+    const notes = TONES[getTone()] || TONES.campana;
+    notes.forEach((freq, i) => {
+      const t0 = ctx.currentTime + i * 0.16;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.32);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t0); osc.stop(t0 + 0.34);
+    });
+  } catch {}
+}
+
+// Aviso del sistema (si el usuario dio permiso). Best-effort.
+export function pushNotify(title, body) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    new Notification(title, { body, tag: 'restaurapp-order', renotify: true });
+  } catch {}
+}
+export async function requestNotifyPermission() {
+  try { if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission(); } catch {}
+}
+
 // Crea el overlay base y devuelve { card, remove, onBackdrop }.
 function overlay() {
   const ov = document.createElement('div');

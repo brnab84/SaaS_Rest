@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import { z } from 'zod';
 import { validate } from '../middleware/validate.js';
 import { Tenant } from '../models/Tenant.js';
@@ -96,6 +97,22 @@ router.post('/:slug/orders', resolveTenant, validate(orderSchema), async (req, r
 
     // Respuesta acotada: el cliente público no necesita ver el documento completo.
     res.status(201).json({ id: order._id, code: order.code, total: order.total, status: order.status });
+  } catch (e) { next(e); }
+});
+
+// POST /api/public/:slug/orders/:id/cancel — el cliente cancela su pedido.
+// Solo permitido mientras siga "nuevo" (sin confirmar por el comercio). El id actúa de token.
+router.post('/:slug/orders/:id/cancel', resolveTenant, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return next(notFound('Pedido no encontrado'));
+    const order = await Order.findOne({ _id: req.params.id, tenantId: req.tenant._id });
+    if (!order) return next(notFound('Pedido no encontrado'));
+    if (order.status === 'cancelled') return res.json({ id: order._id, status: 'cancelled' });
+    if (order.status !== 'new') return next(badRequest('El pedido ya está en preparación; contactá al comercio para cancelarlo.'));
+    order.status = 'cancelled';
+    order.timeline.push({ status: 'cancelled', by: 'landing' });
+    await order.save();
+    res.json({ id: order._id, status: 'cancelled' });
   } catch (e) { next(e); }
 });
 

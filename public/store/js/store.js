@@ -68,9 +68,11 @@
     if (!products.length) { app.innerHTML = header() + '<div class="wrap"><div class="center">Todavía no hay productos en la carta.</div></div>'; return; }
     const cats = {};
     for (const p of products) { const c = p.category || 'Menú'; (cats[c] ||= []).push(p); }
-    let html = header() + '<div class="wrap">';
+    const names = Object.keys(cats);
+    const chips = names.length > 1 ? `<nav class="catbar">${names.map((c, i) => `<button class="chip" data-sec="sec-${i}">${esc(c)}</button>`).join('')}</nav>` : '';
+    let html = header() + chips + '<div class="wrap">';
     if (!storeOpen) html += '<div class="closed">🔴 Cerrado ahora · No se reciben pedidos en este momento.</div>';
-    for (const [cat, items] of Object.entries(cats)) { html += `<div class="cat">${esc(cat)}</div>`; for (const p of items) html += prodHTML(p); }
+    names.forEach((cat, i) => { html += `<div class="cat" id="sec-${i}">${esc(cat)}</div>`; for (const p of cats[cat]) html += prodHTML(p); });
     html += '</div>' + cartbarHTML();
     app.innerHTML = html;
     app.querySelectorAll('.prod').forEach((el) => {
@@ -78,6 +80,7 @@
       el.querySelector('[data-inc]')?.addEventListener('click', () => { cart[id] = (cart[id] || 0) + 1; render(); });
       el.querySelector('[data-dec]')?.addEventListener('click', () => { cart[id] = Math.max(0, (cart[id] || 0) - 1); if (!cart[id]) delete cart[id]; render(); });
     });
+    app.querySelectorAll('.catbar .chip').forEach((b) => b.addEventListener('click', () => document.getElementById(b.dataset.sec)?.scrollIntoView({ behavior: 'smooth', block: 'start' })));
     document.getElementById('cartbar')?.addEventListener('click', openCheckout);
   }
 
@@ -123,8 +126,28 @@
       <p style="color:var(--muted)">${esc(tenant.name)} te va a contactar para coordinar pago y entrega.</p>
       <div class="code">#${esc(o.code)}</div>
       <div class="line total" style="max-width:300px;margin:0 auto"><span>Total</span><span>${fmt.format(o.total)}</span></div>
-      <button class="btn btn-primary" id="again" style="max-width:300px;margin:24px auto 0">Hacer otro pedido</button>
+      <div id="ok-actions" style="max-width:300px;margin:24px auto 0;display:flex;flex-direction:column;gap:10px">
+        <button class="btn btn-primary" id="again">Hacer otro pedido</button>
+        <button class="btn btn-ghost" id="cancel-order">Cancelar pedido</button>
+      </div>
     </div><div class="foot">Pedidos con RestaurApp</div>`;
     document.getElementById('again').addEventListener('click', () => location.reload());
+    document.getElementById('cancel-order').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      btn.disabled = true; btn.textContent = 'Cancelando…';
+      try {
+        const res = await fetch(`/api/public/${encodeURIComponent(slug)}/orders/${o.id}/cancel`, { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error?.message || 'No se pudo cancelar');
+        const actions = document.getElementById('ok-actions');
+        actions.innerHTML = '<div style="color:var(--muted);text-align:center">Tu pedido fue cancelado.</div><button class="btn btn-primary" id="again2">Hacer otro pedido</button>';
+        document.getElementById('again2').addEventListener('click', () => location.reload());
+      } catch (ex) {
+        btn.disabled = false; btn.textContent = 'Cancelar pedido';
+        const a = document.getElementById('ok-actions');
+        let m = a.querySelector('.c-err'); if (!m) { m = document.createElement('div'); m.className = 'c-err'; m.style.cssText = 'color:var(--accent);text-align:center;font-size:13px'; a.appendChild(m); }
+        m.textContent = ex.message || 'No se pudo cancelar';
+      }
+    });
   }
 })();

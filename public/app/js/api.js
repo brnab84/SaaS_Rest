@@ -79,6 +79,7 @@ export const ordersApi = {
 export const expensesApi = {
   list: () => request('/expenses'),
   create: (b) => request('/expenses', { method: 'POST', body: b }),
+  update: (id, b) => request(`/expenses/${id}`, { method: 'PATCH', body: b }),
   remove: (id) => request(`/expenses/${id}`, { method: 'DELETE' }),
 };
 
@@ -116,6 +117,18 @@ export async function importProducts({ file, text }) {
   if (res.status === 401) { logout(); throw new ApiError('Sesión expirada', 401); }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiError(data?.error?.message || 'No se pudo importar', res.status);
+  return data;
+}
+
+// Crear artículo desde una foto: la IA detecta nombre, descripción y categoría sugerida.
+export async function productFromPhoto(file) {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch('/api/products/from-photo', { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd });
+  if (res.status === 401) { logout(); throw new ApiError('Sesión expirada', 401); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(data?.error?.message || 'No se pudo analizar la foto', res.status);
   return data;
 }
 

@@ -4,7 +4,8 @@ import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { Product } from '../models/Product.js';
-import { extractMenu } from '../services/claude.js';
+import { Tenant } from '../models/Tenant.js';
+import { extractMenu, extractProductFromPhoto } from '../services/claude.js';
 import { notFound, badRequest } from '../utils/errors.js';
 
 const router = Router();
@@ -31,6 +32,17 @@ router.post('/import', requireRole('owner', 'admin'), upload.single('file'), asy
     if (!docs.length) return res.json({ imported: 0 });
     const created = await Product.insertMany(docs);
     res.status(201).json({ imported: created.length });
+  } catch (e) { next(e); }
+});
+
+// Crear artículo desde una foto del plato: la IA detecta nombre, descripción y categoría.
+router.post('/from-photo', requireRole('owner', 'admin'), upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file || !req.file.mimetype?.startsWith('image/')) return next(badRequest('Subí una imagen del plato'));
+    const tenant = await Tenant.findById(req.auth.tenantId).select('settings.categories');
+    const categories = tenant?.settings?.categories || [];
+    const data = await extractProductFromPhoto({ imageBase64: req.file.buffer.toString('base64'), mediaType: req.file.mimetype, categories });
+    res.json({ name: data.name || '', description: data.description || '', category: data.category || '' });
   } catch (e) { next(e); }
 });
 

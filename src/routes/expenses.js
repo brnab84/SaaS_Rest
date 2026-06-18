@@ -30,6 +30,7 @@ const expenseSchema = z.object({
     amount: z.number().optional(),
   })).optional(),
   photoUrl: z.string().url().optional(),
+  ocrStatus: z.enum(['pending', 'review', 'done']).optional(),
 });
 const expensePatchSchema = expenseSchema.partial();
 

@@ -156,6 +156,15 @@ button { font-family: var(--font); cursor: pointer; }
 .view-head h1 { font-size: 22px; }
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 
+/* ===== navegación por categorías ===== */
+.catnav { position: sticky; top: 0; z-index: 20; display: flex; gap: 8px; overflow-x: auto; padding: 8px 0 12px; margin-bottom: 4px; background: var(--bg); scrollbar-width: none; }
+.catnav::-webkit-scrollbar { display: none; }
+.catnav .chip { flex: 0 0 auto; background: var(--surface-2); color: var(--text); border: var(--border-w) var(--border-style) var(--border-color); border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.catnav .chip:hover { border-color: var(--accent); color: var(--accent); }
+.cat-group { margin-bottom: 18px; scroll-margin-top: 60px; }
+.cat-h { font-weight: 700; font-size: 16px; margin: 8px 2px 10px; display: flex; align-items: baseline; gap: 6px; }
+.cat-h .muted { color: var(--text-muted); font-size: 13px; font-weight: 500; }
+
 /* ===== listas ===== */
 .list { display: flex; flex-direction: column; gap: 10px; }
 .list-item {
