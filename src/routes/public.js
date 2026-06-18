@@ -8,6 +8,7 @@ import { Order } from '../models/Order.js';
 import { notFound, badRequest } from '../utils/errors.js';
 import { generateOrderCode } from '../utils/orderCode.js';
 import { emitOrderChange } from '../services/orderEvents.js';
+import { getPlan } from '../config/plans.js';
 
 const router = Router();
 
@@ -34,6 +35,7 @@ router.get('/:slug/menu', resolveTenant, async (req, res, next) => {
         currency: req.tenant.settings?.currency || 'ARS',
         storeOpen: req.tenant.settings?.storeOpen !== false,
         allowCancel: req.tenant.settings?.allowCancel !== false,
+        whitelabel: getPlan(req.tenant.plan).features?.whitelabel === true, // ¿oculta marca RestaurApp?
         branding: req.tenant.branding || {},
       },
       products,

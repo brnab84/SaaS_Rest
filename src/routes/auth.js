@@ -6,6 +6,7 @@ import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { Tenant } from '../models/Tenant.js';
 import { User } from '../models/User.js';
+import { getPlan } from '../config/plans.js';
 import { unauthorized, badRequest, forbidden, notFound } from '../utils/errors.js';
 
 const router = Router();
@@ -20,7 +21,9 @@ router.get('/me', requireAuth, async (req, res, next) => {
     if (!tenant) return next(notFound('Comercio no encontrado'));
     // isRoot: ¿esta cuenta es el dueño de la app? Habilita el panel de administración.
     const isRoot = !!user && user.email.toLowerCase() === env.rootEmail;
-    res.json({ user: { ...user.toJSON(), isRoot }, tenant });
+    // whitelabel: ¿el plan permite marca propia (ocultar "RestaurApp")?
+    const whitelabel = getPlan(tenant.plan).features?.whitelabel === true;
+    res.json({ user: { ...user.toJSON(), isRoot }, tenant: { ...tenant.toJSON(), whitelabel } });
   } catch (e) { next(e); }
 });
 

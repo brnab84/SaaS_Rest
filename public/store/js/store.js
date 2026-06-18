@@ -141,7 +141,7 @@
         ${waBtn}
         <button class="btn btn-ghost" id="again">Hacer otro pedido</button>
       </div>
-    </div><div class="foot">Pedidos con RestaurApp</div>`;
+    </div><div class="foot">${tenant.whitelabel ? esc(tenant.name) : 'Pedidos con RestaurApp'}</div>`;
     document.getElementById('ok-track').addEventListener('click', () => showTracking(o.id));
     document.getElementById('again').addEventListener('click', goToMenu);
     if (b.phone) document.getElementById('ok-wa').addEventListener('click', () => openWaFollow(o));

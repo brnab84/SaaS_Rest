@@ -1,7 +1,7 @@
 import { applyTheme, getTheme, renderThemePicker, setThemeChangeHandler } from './themes.js';
 import { login, register, getAuthConfig, logout, isAuthed, tenantApi, me } from './api.js';
 import { renderResumen, renderMenu, renderPedidos, renderGastos, renderCampanias, renderAjustes, renderAdmin } from './views.js';
-import { clearTimers } from './ui.js';
+import { clearTimers, esc } from './ui.js';
 
 const root = document.getElementById('root');
 
@@ -25,7 +25,17 @@ const NAV = [
 ];
 const ADMIN_NAV = { id: 'admin', label: 'Admin', view: renderAdmin };
 let rootUser = false; // ¿la cuenta logueada es el dueño de la app? Habilita la pestaña Admin.
+let brandTenant = null; // si el plan tiene marca blanca, mostramos el logo/nombre del comercio
 const navItems = () => (rootUser ? [...NAV, ADMIN_NAV] : NAV);
+// Marca del topbar: por defecto "RestaurApp."; con marca blanca, logo+nombre del comercio.
+function brandHtml() {
+  if (brandTenant?.whitelabel) {
+    const b = brandTenant.branding || {};
+    const logo = b.logo ? `<img class="brand-logo" src="${esc(b.logo)}" alt="" />` : '';
+    return `${logo}<span class="brand-name">${esc(brandTenant.name)}</span>`;
+  }
+  return 'RestaurApp<span class="dot">.</span>';
+}
 
 applyTheme(getTheme());
 // Al cambiar el tema, persistirlo en el comercio (así la landing usa el mismo).
@@ -91,10 +101,13 @@ function start() {
   detectRoot(); // asíncrono: si la cuenta es root, agrega la pestaña Admin
 }
 
-// Detecta si la cuenta logueada es el dueño de la app (root) y re-renderiza con la pestaña Admin.
+// Detecta root (pestaña Admin) y marca blanca (logo propio en el topbar); re-renderiza si aplica.
 async function detectRoot() {
-  try { const m = await me(); rootUser = !!m.user?.isRoot; } catch { return; }
-  if (rootUser && document.getElementById('view')) renderApp();
+  let m;
+  try { m = await me(); } catch { return; }
+  rootUser = !!m.user?.isRoot;
+  if (m.tenant?.whitelabel) brandTenant = m.tenant;
+  if ((rootUser || brandTenant) && document.getElementById('view')) renderApp();
 }
 
 function currentRoute() { const h = location.hash.replace('#/', ''); return navItems().some((n) => n.id === h) ? h : 'resumen'; }
@@ -121,7 +134,7 @@ function renderApp() {
   root.innerHTML = `
     <div class="shell">
       <header class="topbar">
-        <span class="brand">RestaurApp<span class="dot">.</span></span>
+        <span class="brand">${brandHtml()}</span>
         <div class="spacer"></div>
         <button class="btn btn-sm" id="logout">Salir</button>
       </header>
