@@ -73,6 +73,7 @@ export const productsApi = {
 export const ordersApi = {
   list: (status) => request(`/orders${status ? `?status=${status}` : ''}`),
   setStatus: (id, status) => request(`/orders/${id}/status`, { method: 'PATCH', body: { status } }),
+  pay: (id) => request(`/orders/${id}/pay`, { method: 'POST' }),
 };
 
 export const expensesApi = {

@@ -23,7 +23,7 @@ const productSchema = z.object({
   cost: z.number().nonnegative().optional(),
   ingredients: z.array(ingredientSchema).optional(),
   available: z.boolean().optional(),
-  photo: z.string().url().optional(),
+  photo: z.string().url().optional().or(z.literal('')),
   sortOrder: z.number().int().optional(),
 });
 // PATCH: todos los campos opcionales

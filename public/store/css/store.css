@@ -23,6 +23,7 @@ body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--
   display: flex; gap: 12px; align-items: center; background: var(--surface);
   border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
 }
+.prod .pthumb { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; flex: 0 0 auto; }
 .prod .info { flex: 1; min-width: 0; }
 .prod .name { font-weight: 700; font-size: 15px; }
 .prod .desc { color: var(--muted); font-size: 13px; margin-top: 2px; }

@@ -63,6 +63,18 @@ router.post('/:id/payment-link', validate(payLinkSchema), async (req, res, next)
   } catch (e) { next(e); }
 });
 
+// Marcar pedido como cobrado (efectivo/transferencia) → cuenta como venta en el dashboard.
+router.post('/:id/pay', async (req, res, next) => {
+  try {
+    const order = await Order.findOne({ _id: req.params.id, tenantId: req.auth.tenantId });
+    if (!order) return next(notFound('Pedido no encontrado'));
+    order.payment.status = 'paid';
+    order.payment.amountPaid = order.total;
+    await order.save();
+    res.json(order);
+  } catch (e) { next(e); }
+});
+
 const STATUS_MSG = {
   preparing: 'Tu pedido está en marcha 👨‍🍳',
   ready: '¡Tu pedido está listo! ✅',

@@ -93,6 +93,7 @@ export async function renderMenu(host) {
       { name: 'cost', label: 'Costo (opcional)', type: 'number', step: '0.01', min: 0, help: 'Para calcular tu margen' },
       { name: 'category', label: 'Categoría', placeholder: 'Ej. Pizzas, Bebidas' },
       { name: 'description', label: 'Descripción', type: 'textarea' },
+      { name: 'photo', label: 'Foto (URL)', placeholder: 'https://… (opcional)', help: 'Pegá el link de una imagen del plato' },
       { name: 'available', label: 'Disponible', type: 'checkbox' },
     ],
     onSubmit: async (v) => { p ? await productsApi.update(p._id, v) : await productsApi.create(v); toast(p ? 'Producto actualizado' : 'Producto creado', 'success'); reload(); },
@@ -102,13 +103,16 @@ export async function renderMenu(host) {
     <div class="view-head"><h1>Menú</h1>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn" id="share-wa">Compartir por WhatsApp</button>
+        <button class="btn" id="import-prod">Importar CSV</button>
         <button class="btn btn-accent" id="add">+ Agregar producto</button>
+        <input type="file" accept=".csv,text/csv" id="prod-csv" hidden />
       </div>
     </div>
     <p class="help">Tu carta. Tocá <strong>"+ Agregar producto"</strong> y completá nombre y precio (el costo es opcional y sirve para ver tu margen). Los productos marcados como disponibles aparecen en tu landing pública para que los clientes pidan.</p>
     ${!items.length ? '<div class="panel"><div class="empty">Tu carta está vacía. Agregá tu primer producto para publicarlo en la landing.</div></div>'
     : `<div class="list">${items.map((p) => `
       <div class="list-item">
+        ${p.photo ? `<img class="thumb" src="${esc(p.photo)}" alt="" loading="lazy" />` : ''}
         <div class="li-main">
           <div class="li-title">${esc(p.name)} ${p.available === false ? '<span class="badge badge-muted">No disponible</span>' : ''}</div>
           <div class="li-sub">${esc(p.category || 'Sin categoría')}${p.description ? ' · ' + esc(p.description) : ''}</div>
@@ -116,6 +120,7 @@ export async function renderMenu(host) {
         </div>
         <div class="li-amt">${money.format(p.price)}</div>
         <div class="li-actions">
+          <button class="btn btn-sm" data-dup="${p._id}">Duplicar</button>
           <button class="btn btn-sm" data-edit="${p._id}">Editar</button>
           <button class="btn btn-sm btn-danger" data-del="${p._id}">Eliminar</button>
         </div>
@@ -132,6 +137,22 @@ export async function renderMenu(host) {
     const p = items.find((x) => x._id === b.dataset.del);
     if (await confirmDialog(`¿Eliminar "${p.name}"?`)) { await productsApi.remove(p._id); toast('Producto eliminado', 'success'); reload(); }
   }));
+  host.querySelectorAll('[data-dup]').forEach((b) => b.addEventListener('click', async () => {
+    const p = items.find((x) => x._id === b.dataset.dup);
+    await productsApi.create({ name: `${p.name} (copia)`, price: p.price, cost: p.cost, category: p.category, description: p.description, photo: p.photo, available: p.available });
+    toast('Producto duplicado', 'success'); reload();
+  }));
+  const prodCsv = host.querySelector('#prod-csv');
+  host.querySelector('#import-prod').addEventListener('click', () => prodCsv.click());
+  prodCsv.addEventListener('change', async () => {
+    const file = prodCsv.files[0]; if (!file) return;
+    const rows = parseProductsCSV(await file.text());
+    if (!rows.length) { toast('No se encontraron filas válidas (columnas: nombre, precio, categoria)', 'error'); return; }
+    toast(`Importando ${rows.length}…`, 'info');
+    let ok = 0;
+    for (const r of rows) { try { await productsApi.create({ name: r.name, price: r.price, category: r.category || undefined, available: true }); ok += 1; } catch {} }
+    toast(`${ok} productos importados`, 'success'); reload();
+  });
 }
 
 /* ===================== PEDIDOS ===================== */
@@ -154,15 +175,17 @@ export async function renderPedidos(host, opts = {}) {
     ${!items.length ? '<div class="panel"><div class="empty">No hay pedidos activos. Los pedidos de la landing, WhatsApp y delivery aparecen acá.</div></div>'
     : `<div class="list">${items.map((o) => {
       const next = nextStatus(o.status);
+      const paid = o.payment?.status === 'paid';
       const itemsTxt = (o.items || []).map((i) => `${i.qty}× ${esc(i.name || '')}`).join(', ');
       return `<div class="list-item order">
         <div class="li-main">
-          <div class="li-title">#${esc(o.code)} <span class="badge badge-status st-${o.status}">${ORDER_LABEL[o.status] || o.status}</span> <span class="badge badge-muted">${esc(o.channel)}</span></div>
+          <div class="li-title">#${esc(o.code)} <span class="badge badge-status st-${o.status}">${ORDER_LABEL[o.status] || o.status}</span> <span class="badge" style="color:${paid ? 'var(--success)' : 'var(--text-muted)'}">${paid ? 'Pagado' : 'A cobrar'}</span> <span class="badge badge-muted">${esc(o.channel)}</span></div>
           <div class="li-sub">${esc(o.customer?.name || 'Cliente')}${o.customer?.phone ? ' · ' + esc(o.customer.phone) : ''}${itemsTxt ? ' — ' + itemsTxt : ''}</div>
         </div>
         <div class="li-amt">${money.format(o.total)}</div>
         <div class="li-actions">
           ${next ? `<button class="btn btn-sm btn-accent" data-next="${o._id}" data-to="${next}">${ORDER_LABEL[next]} ▸</button>` : ''}
+          ${!paid && o.status !== 'cancelled' ? `<button class="btn btn-sm" data-pay="${o._id}">Cobrado</button>` : ''}
           ${o.status !== 'cancelled' && o.status !== 'delivered' ? `<button class="btn btn-sm btn-danger" data-cancel="${o._id}">Cancelar</button>` : ''}
         </div>
       </div>`;
@@ -171,6 +194,9 @@ export async function renderPedidos(host, opts = {}) {
   host.querySelector('#refresh').addEventListener('click', reload);
   host.querySelectorAll('[data-next]').forEach((b) => b.addEventListener('click', async () => {
     await ordersApi.setStatus(b.dataset.next, b.dataset.to); toast(`Pedido → ${ORDER_LABEL[b.dataset.to]}`, 'success'); reload();
+  }));
+  host.querySelectorAll('[data-pay]').forEach((b) => b.addEventListener('click', async () => {
+    await ordersApi.pay(b.dataset.pay); toast('Marcado como cobrado · se suma a ventas', 'success'); reload();
   }));
   host.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', async () => {
     if (await confirmDialog('¿Cancelar este pedido?')) { await ordersApi.setStatus(b.dataset.cancel, 'cancelled'); toast('Pedido cancelado', 'success'); reload(); }
@@ -294,6 +320,23 @@ function splitCSVLine(line) {
     else cur += ch;
   }
   out.push(cur);
+  return out;
+}
+
+function parseProductsCSV(text) {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+  const header = splitCSVLine(lines[0]).map((h) => h.trim().toLowerCase());
+  const idx = (names) => header.findIndex((h) => names.includes(h));
+  const iName = idx(['nombre', 'name', 'producto']); const iPrice = idx(['precio', 'price']); const iCat = idx(['categoria', 'category', 'categoría', 'rubro']);
+  const out = [];
+  for (let i = 1; i < lines.length; i += 1) {
+    const c = splitCSVLine(lines[i]);
+    const name = iName >= 0 ? (c[iName] || '').trim() : '';
+    const price = Number(String(iPrice >= 0 ? c[iPrice] : '').replace(/[^0-9.,-]/g, '').replace(',', '.'));
+    if (!name || !price) continue;
+    out.push({ name, price, category: iCat >= 0 ? (c[iCat] || '').trim() : undefined });
+  }
   return out;
 }
 

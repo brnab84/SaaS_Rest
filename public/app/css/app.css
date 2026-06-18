@@ -179,6 +179,7 @@ button { font-family: var(--font); cursor: pointer; }
 .st-cancelled { color: var(--danger); }
 .live { font-size: 12px; font-weight: 700; color: var(--success); white-space: nowrap; }
 .idea { background: var(--surface-2); border-radius: var(--radius); padding: 12px 14px; }
+.thumb { width: 48px; height: 48px; border-radius: var(--radius); object-fit: cover; flex: 0 0 auto; }
 
 /* ===== botones extra ===== */
 .btn-sm { padding: 7px 12px; font-size: 13px; min-height: 38px; }

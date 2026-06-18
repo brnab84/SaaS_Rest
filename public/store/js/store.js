@@ -49,6 +49,7 @@
       ? `<div class="stepper">${q > 0 ? `<button class="qbtn" data-dec aria-label="Quitar">−</button><span class="qty">${q}</span>` : ''}<button class="qbtn add" data-inc aria-label="Agregar">+</button></div>`
       : '';
     return `<div class="prod" data-id="${p._id}">
+      ${p.photo ? `<img class="pthumb" src="${esc(p.photo)}" alt="" loading="lazy" />` : ''}
       <div class="info"><div class="name">${esc(p.name)}</div>${p.description ? `<div class="desc">${esc(p.description)}</div>` : ''}<div class="price">${fmt.format(p.price)}</div></div>
       ${stepper}
     </div>`;
