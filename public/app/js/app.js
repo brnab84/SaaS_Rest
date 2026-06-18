@@ -153,7 +153,7 @@ function renderSignup() {
           <h1>Creá tu comercio</h1>
           <p class="muted" style="font-size:13px;margin:4px 0 0">Empezá a recibir y gestionar pedidos.</p>
           <div class="field"><label for="biz">Nombre del comercio</label><input class="input" id="biz" type="text" required /></div>
-          <div class="field"><label for="slug">Dirección de tu landing (slug)</label><input class="input mono" id="slug" type="text" pattern="[a-z0-9-]+" required /></div>
+          <div class="field"><label for="slug">Dirección de tu landing</label><input class="input mono" id="slug" type="text" pattern="[a-z0-9-]+" required readonly aria-readonly="true" /><div class="hint" id="slug-hint" style="margin-top:4px">Se genera automáticamente del nombre del comercio.</div></div>
           <div class="field"><label for="su-email">Email</label><input class="input" id="su-email" type="email" autocomplete="email" required /></div>
           <div class="field"><label for="su-pass">Contraseña (mín. 8)</label><input class="input" id="su-pass" type="password" minlength="8" autocomplete="new-password" required /></div>
           <div class="error" id="signup-error"></div>
@@ -164,10 +164,12 @@ function renderSignup() {
       </div>
     </div>`;
   mountPicker();
-  const biz = document.getElementById('biz'); const slug = document.getElementById('slug');
-  let slugEdited = false;
-  slug.addEventListener('input', () => { slugEdited = true; });
-  biz.addEventListener('input', () => { if (!slugEdited) slug.value = slugify(biz.value); });
+  const biz = document.getElementById('biz'); const slug = document.getElementById('slug'); const slugHint = document.getElementById('slug-hint');
+  // El slug es solo lectura: siempre se deriva del nombre del comercio.
+  biz.addEventListener('input', () => {
+    slug.value = slugify(biz.value);
+    if (slugHint) slugHint.textContent = slug.value ? `${location.origin}/r/${slug.value}` : 'Se genera automáticamente del nombre del comercio.';
+  });
   document.getElementById('to-login').addEventListener('click', (e) => { e.preventDefault(); renderLogin(); });
   document.getElementById('signup-form').addEventListener('submit', async (e) => {
     e.preventDefault();
