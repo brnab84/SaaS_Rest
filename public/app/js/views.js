@@ -424,16 +424,14 @@ export async function renderAjustes(host) {
         <div>
           <div class="muted" style="font-size:12px;margin-bottom:6px">Logo</div>
           ${logoUrl ? `<img class="logo-prev" src="${esc(logoUrl)}" alt="logo" />` : '<div class="logo-prev placeholder">sin logo</div>'}
-          <button class="btn btn-sm" id="up-logo" style="display:block;margin-top:8px">${logoUrl ? 'Cambiar' : 'Subir'} logo</button>
+          <label class="btn btn-sm" style="display:inline-flex;margin-top:8px;cursor:pointer">${logoUrl ? 'Cambiar' : 'Subir'} logo<input type="file" accept="image/*" id="logo-input" hidden /></label>
         </div>
         <div>
           <div class="muted" style="font-size:12px;margin-bottom:6px">Portada</div>
           ${coverUrl ? `<div class="cover-prev" style="background-image:url('${esc(coverUrl)}')"></div>` : '<div class="cover-prev placeholder">sin portada</div>'}
-          <button class="btn btn-sm" id="up-cover" style="display:block;margin-top:8px">${coverUrl ? 'Cambiar' : 'Subir'} portada</button>
+          <label class="btn btn-sm" style="display:inline-flex;margin-top:8px;cursor:pointer">${coverUrl ? 'Cambiar' : 'Subir'} portada<input type="file" accept="image/*" id="cover-input" hidden /></label>
         </div>
       </div>
-      <input type="file" accept="image/*" id="logo-input" hidden />
-      <input type="file" accept="image/*" id="cover-input" hidden />
     </div>
     <div class="panel">
       <h2>Tu landing pública</h2>
@@ -466,11 +464,9 @@ export async function renderAjustes(host) {
 
   renderThemePicker(host.querySelector('#theme-cfg'));
 
-  const wireUpload = (btnId, inputId, field) => {
-    const input = host.querySelector(`#${inputId}`);
-    host.querySelector(`#${btnId}`)?.addEventListener('click', () => input.click());
-    input?.addEventListener('change', async () => {
-      const file = input.files[0]; if (!file) return;
+  const wireUpload = (inputId, field) => {
+    host.querySelector(`#${inputId}`)?.addEventListener('change', async (e) => {
+      const file = e.target.files[0]; if (!file) return;
       toast('Subiendo imagen…', 'info');
       try {
         const r = await uploadImage(file);
@@ -479,8 +475,8 @@ export async function renderAjustes(host) {
       } catch (ex) { toast(ex.message || 'No se pudo subir', 'error'); }
     });
   };
-  wireUpload('up-logo', 'logo-input', 'logo');
-  wireUpload('up-cover', 'cover-input', 'cover');
+  wireUpload('logo-input', 'logo');
+  wireUpload('cover-input', 'cover');
 
   host.querySelector('#toggle-store')?.addEventListener('click', async () => {
     try { await tenantApi.update({ settings: { storeOpen: !open } }); toast(open ? 'Tienda cerrada' : 'Tienda abierta', 'success'); renderAjustes(host); }
