@@ -143,9 +143,12 @@
       </div>
     </div><div class="foot">Pedidos con RestaurApp</div>`;
     document.getElementById('ok-track').addEventListener('click', () => showTracking(o.id));
-    document.getElementById('again').addEventListener('click', () => location.reload());
+    document.getElementById('again').addEventListener('click', goToMenu);
     if (b.phone) document.getElementById('ok-wa').addEventListener('click', () => openWaFollow(o));
   }
+
+  // Vuelve al menú del local (limpia ?order= de la URL para no quedar en el seguimiento).
+  function goToMenu() { location.href = location.pathname; }
 
   // Abre WhatsApp del comercio para consultar/seguir el pedido.
   function openWaFollow(o) {
@@ -187,7 +190,8 @@
         return `<div class="step ${done ? 'done' : ''} ${current ? 'current' : ''}"><span class="dot">${done ? '✓' : (current ? '●' : '')}</span><div class="s-main"><div class="s-label">${label}</div>${t}</div></div>`;
       }).join('');
     const waBtn = b.phone ? '<button class="btn btn-ghost" id="t-wa">Consultar por WhatsApp</button>' : '';
-    const cancelBtn = o.status === 'new' ? '<button class="btn btn-ghost" id="t-cancel">Cancelar pedido</button>' : '';
+    const canCancel = o.status === 'new' && tenant.allowCancel !== false; // el comercio puede deshabilitarlo
+    const cancelBtn = canCancel ? '<button class="btn btn-ghost" id="t-cancel">Cancelar pedido</button>' : '';
     app.innerHTML = header() + `<div class="wrap"><div class="track">
       <div class="track-head"><h2>Seguimiento de tu pedido</h2><div class="code">#${esc(o.code)}</div></div>
       <div class="line total"><span>Total</span><span>${fmt.format(o.total)}</span></div>
@@ -195,9 +199,9 @@
       <div class="track-actions">${cancelBtn}${waBtn}<button class="btn btn-primary" id="t-again">Hacer otro pedido</button></div>
       <p class="track-hint">Esta página se actualiza sola a medida que avanza tu pedido. Guardá el link para volver a verla.</p>
     </div></div>`;
-    document.getElementById('t-again').addEventListener('click', () => location.reload());
+    document.getElementById('t-again').addEventListener('click', goToMenu);
     if (b.phone) document.getElementById('t-wa').addEventListener('click', () => openWaFollow(o));
-    if (o.status === 'new') {
+    if (canCancel) {
       document.getElementById('t-cancel').addEventListener('click', async (e) => {
         const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Cancelando…';
         try {

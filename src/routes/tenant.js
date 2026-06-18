@@ -23,7 +23,7 @@ function publicView(doc) {
     name: t.name,
     slug: t.slug,
     plan: t.plan,
-    settings: { currency: s.currency, storeOpen: s.storeOpen !== false, categories: s.categories || [], orderMessages: s.orderMessages || {} },
+    settings: { currency: s.currency, storeOpen: s.storeOpen !== false, allowCancel: s.allowCancel !== false, categories: s.categories || [], orderMessages: s.orderMessages || {} },
     branding: t.branding || {},
     integrations: {
       whatsapp: { phoneId: s.whatsapp?.phoneId, wabaId: s.whatsapp?.wabaId, connected: !!s.whatsapp?.tokenEnc },
@@ -99,6 +99,7 @@ const patchSchema = z.object({
   settings: z.object({
     currency: z.string().min(2).max(8).optional(),
     storeOpen: z.boolean().optional(),
+    allowCancel: z.boolean().optional(),
     categories: z.array(z.string().min(1).max(40)).max(40).optional(),
     orderMessages: z.object({
       confirmed: z.string().max(300).optional(),
@@ -133,6 +134,7 @@ router.patch('/', requireRole('owner', 'admin'), validate(patchSchema), async (r
     if (b.name !== undefined) $set.name = b.name;
     if (b.settings?.currency !== undefined) $set['settings.currency'] = b.settings.currency;
     if (b.settings?.storeOpen !== undefined) $set['settings.storeOpen'] = b.settings.storeOpen;
+    if (b.settings?.allowCancel !== undefined) $set['settings.allowCancel'] = b.settings.allowCancel;
     if (b.settings?.categories !== undefined) $set['settings.categories'] = b.settings.categories;
     if (b.settings?.orderMessages) {
       for (const [k, v] of Object.entries(b.settings.orderMessages)) {

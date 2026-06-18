@@ -22,6 +22,8 @@ export const env = {
   serviceRole: process.env.SERVICE_ROLE || 'api',
   // Parámetro de admin: ¿se aceptan registros de comercios nuevos? (toggle desde Railway)
   registrationOpen: process.env.REGISTRATION_OPEN !== 'false',
+  // Email del dueño de la app (único root): solo esa cuenta ve el panel de administración.
+  rootEmail: (process.env.ROOT_EMAIL || 'brnab84@gmail.com').toLowerCase(),
   // Clave para cifrar secretos por tenant en DB (tokens de WA/IG/MP). Fallback a JWT_SECRET.
   encryptionKey: process.env.ENCRYPTION_KEY || process.env.JWT_SECRET,
 };

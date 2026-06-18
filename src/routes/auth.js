@@ -18,7 +18,9 @@ router.get('/me', requireAuth, async (req, res, next) => {
       Tenant.findById(req.auth.tenantId).select('name slug plan settings.currency branding'),
     ]);
     if (!tenant) return next(notFound('Comercio no encontrado'));
-    res.json({ user, tenant });
+    // isRoot: ¿esta cuenta es el dueño de la app? Habilita el panel de administración.
+    const isRoot = !!user && user.email.toLowerCase() === env.rootEmail;
+    res.json({ user: { ...user.toJSON(), isRoot }, tenant });
   } catch (e) { next(e); }
 });
 

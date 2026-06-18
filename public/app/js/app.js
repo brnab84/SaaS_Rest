@@ -1,6 +1,6 @@
 import { applyTheme, getTheme, renderThemePicker, setThemeChangeHandler } from './themes.js';
-import { login, register, getAuthConfig, logout, isAuthed, tenantApi } from './api.js';
-import { renderResumen, renderMenu, renderPedidos, renderGastos, renderCampanias, renderAjustes } from './views.js';
+import { login, register, getAuthConfig, logout, isAuthed, tenantApi, me } from './api.js';
+import { renderResumen, renderMenu, renderPedidos, renderGastos, renderCampanias, renderAjustes, renderAdmin } from './views.js';
 import { clearTimers } from './ui.js';
 
 const root = document.getElementById('root');
@@ -13,6 +13,7 @@ const ICONS = {
   gastos: I('<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><path d="M16 14h.5"/>'),
   campanias: I('<path d="M3 10v4h3l8 4V6L6 10H3z"/><path d="M17 9a3 3 0 0 1 0 6"/>'),
   ajustes: I('<circle cx="12" cy="12" r="3"/><path d="M20 12a8 8 0 0 0-.13-1.4l2-1.5-2-3.5-2.3 1a8 8 0 0 0-2.4-1.4L14.8 2h-4l-.4 2.8a8 8 0 0 0-2.4 1.4l-2.3-1-2 3.5 2 1.5A8 8 0 0 0 4 12c0 .47.05.94.13 1.4l-2 1.5 2 3.5 2.3-1a8 8 0 0 0 2.4 1.4l.4 2.8h4l.4-2.8a8 8 0 0 0 2.4-1.4l2.3 1 2-3.5-2-1.5c.08-.46.13-.93.13-1.4z"/>'),
+  admin: I('<path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/>'),
 };
 const NAV = [
   { id: 'resumen', label: 'Resumen', view: renderResumen },
@@ -22,6 +23,9 @@ const NAV = [
   { id: 'campanias', label: 'Campañas', view: renderCampanias },
   { id: 'ajustes', label: 'Ajustes', view: renderAjustes },
 ];
+const ADMIN_NAV = { id: 'admin', label: 'Admin', view: renderAdmin };
+let rootUser = false; // ¿la cuenta logueada es el dueño de la app? Habilita la pestaña Admin.
+const navItems = () => (rootUser ? [...NAV, ADMIN_NAV] : NAV);
 
 applyTheme(getTheme());
 // Al cambiar el tema, persistirlo en el comercio (así la landing usa el mismo).
@@ -43,8 +47,19 @@ function syncTenantTheme() {
   }).catch(() => {});
 }
 
-function start() { isAuthed() ? renderApp() : renderLogin(); }
-function currentRoute() { const h = location.hash.replace('#/', ''); return NAV.some((n) => n.id === h) ? h : 'resumen'; }
+function start() {
+  if (!isAuthed()) { renderLogin(); return; }
+  renderApp();
+  detectRoot(); // asíncrono: si la cuenta es root, agrega la pestaña Admin
+}
+
+// Detecta si la cuenta logueada es el dueño de la app (root) y re-renderiza con la pestaña Admin.
+async function detectRoot() {
+  try { const m = await me(); rootUser = !!m.user?.isRoot; } catch { return; }
+  if (rootUser && document.getElementById('view')) renderApp();
+}
+
+function currentRoute() { const h = location.hash.replace('#/', ''); return navItems().some((n) => n.id === h) ? h : 'resumen'; }
 
 function mountPicker() {
   const slot = document.getElementById('theme-slot');
@@ -64,7 +79,7 @@ async function renderVersion() {
 
 /* ---------- Shell autenticado + router ---------- */
 function renderApp() {
-  const tabs = (cls) => NAV.map((n) => `<a class="${cls}" href="#/${n.id}" data-nav="${n.id}"><span class="nav-ico">${ICONS[n.id]}</span><span class="nav-lbl">${n.label}</span></a>`).join('');
+  const tabs = (cls) => navItems().map((n) => `<a class="${cls}" href="#/${n.id}" data-nav="${n.id}"><span class="nav-ico">${ICONS[n.id]}</span><span class="nav-lbl">${n.label}</span></a>`).join('');
   root.innerHTML = `
     <div class="shell">
       <header class="topbar">
@@ -87,7 +102,7 @@ function onRoute() {
   clearTimers(); // detener auto-refresco de la vista anterior
   const id = currentRoute();
   document.querySelectorAll('[data-nav]').forEach((a) => a.setAttribute('aria-current', a.dataset.nav === id ? 'page' : 'false'));
-  const entry = NAV.find((n) => n.id === id);
+  const entry = navItems().find((n) => n.id === id);
   entry.view(document.getElementById('view'));
 }
 

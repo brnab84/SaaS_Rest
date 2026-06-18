@@ -16,6 +16,7 @@ import dashboardRoutes from './routes/dashboard.js';
 import tenantRoutes from './routes/tenant.js';
 import fileRoutes from './routes/files.js';
 import publicRoutes from './routes/public.js';
+import adminRoutes from './routes/admin.js';
 import webhookRoutes from './routes/webhooks.js';
 
 export function createApp() {
@@ -63,6 +64,7 @@ export function createApp() {
   app.use('/api/campaigns', apiLimiter, campaignRoutes);
   app.use('/api/dashboard', apiLimiter, dashboardRoutes);
   app.use('/api/tenant', apiLimiter, tenantRoutes);
+  app.use('/api/admin', apiLimiter, adminRoutes); // panel del dueño de la app (root)
   app.use('/api/files', fileRoutes); // imágenes (sin limiter: se piden mucho desde la landing)
   app.use('/api/public', apiLimiter, publicRoutes); // landing pública, sin auth
   app.use('/webhooks', webhookRoutes); // sin limiter: MP/Meta reintentan

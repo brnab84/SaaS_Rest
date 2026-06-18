@@ -7,6 +7,7 @@ const tenantSchema = new Schema({
   settings: {
     currency: { type: String, default: 'ARS' },
     storeOpen: { type: Boolean, default: true }, // ¿la tienda acepta pedidos ahora?
+    allowCancel: { type: Boolean, default: true }, // ¿el cliente puede cancelar su pedido (mientras esté "nuevo")?
     categories: { type: [String], default: undefined }, // categorías del menú (dropdown)
     // Mensajes que se envían al cliente por WhatsApp según el estado del pedido (parametrizables).
     orderMessages: {

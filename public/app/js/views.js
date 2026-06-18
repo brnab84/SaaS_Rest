@@ -1,4 +1,4 @@
-import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto, importProductsFromWhatsApp, ordersStreamUrl } from './api.js';
+import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto, importProductsFromWhatsApp, ordersStreamUrl, adminApi } from './api.js';
 import { money, num, esc, formModal, confirmDialog, toast, onInterval, clearTimers, onCleanup, playPing, pushNotify, requestNotifyPermission, soundEnabled, setSoundEnabled, getTone, setTone } from './ui.js';
 import { renderThemePicker } from './themes.js';
 
@@ -544,6 +544,9 @@ export async function renderAjustes(host) {
         <span class="badge" style="color:${open ? 'var(--success)' : 'var(--danger)'}">${open ? '🟢 Abierta' : '🔴 Cerrada'}</span>
         <button class="btn ${open ? 'btn-danger' : 'btn-accent'}" id="toggle-store">${open ? 'Cerrar tienda' : 'Abrir tienda'}</button>
       </div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:14px 0" />
+      <label class="field-check"><input type="checkbox" id="allow-cancel" ${tenant.settings?.allowCancel !== false ? 'checked' : ''}/> Permitir que el cliente cancele su pedido</label>
+      <p class="muted" style="margin:6px 0 0;font-size:12px">Si está activo, el cliente puede cancelar desde el seguimiento <strong>mientras el pedido siga "Nuevo"</strong> (sin confirmar). Si lo desactivás, no aparece el botón de cancelar.</p>
     </div>
     <div class="panel">
       <h2>Apariencia (tema)</h2>
@@ -718,6 +721,11 @@ export async function renderAjustes(host) {
     catch (ex) { toast(ex.message || 'No se pudo cambiar el estado', 'error'); }
   });
 
+  host.querySelector('#allow-cancel')?.addEventListener('change', async (e) => {
+    try { await tenantApi.update({ settings: { allowCancel: e.target.checked } }); toast(e.target.checked ? 'Cancelación habilitada' : 'Cancelación deshabilitada', 'success'); }
+    catch (ex) { toast(ex.message || 'No se pudo guardar', 'error'); e.target.checked = !e.target.checked; }
+  });
+
   host.querySelector('#copy-link')?.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(storeUrl); toast('Link copiado', 'success'); }
     catch { toast('Copiá el link de abajo', 'info'); }
@@ -856,4 +864,46 @@ export async function renderCampanias(host) {
       box.innerHTML = `<div class="empty">${esc(ex.status === 503 ? 'La IA no está configurada (falta ANTHROPIC_API_KEY).' : ex.message)}</div>`;
     } finally { btn.disabled = false; btn.textContent = '✨ Sugerir con IA'; }
   });
+}
+
+/* ===================== ADMIN (root / dueño de la app) ===================== */
+export async function renderAdmin(host) {
+  loading(host);
+  let data;
+  try { data = await adminApi.overview(); }
+  catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  const reload = () => renderAdmin(host);
+  const { totals, plans, tenants } = data;
+  const planOpts = Object.keys(plans);
+
+  host.innerHTML = `
+    <div class="view-head"><h1>Administración</h1><span class="muted">${num.format(totals.tenants)} comercios</span></div>
+    <p class="help">Panel del dueño de la plataforma (cuenta root). Acá ves <strong>todos los comercios</strong>, su plan y uso, y podés cambiarles el plan a mano. El <strong>MRR estimado</strong> suma las cuotas mensuales de los planes pagos activos.</p>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="label">Comercios</div><div class="value">${num.format(totals.tenants)}</div></div>
+      <div class="kpi"><div class="label">MRR estimado</div><div class="value">${money.format(totals.mrr || 0)}</div></div>
+      <div class="kpi"><div class="label">Free</div><div class="value">${num.format(totals.byPlan.free || 0)}</div></div>
+      <div class="kpi"><div class="label">Pro</div><div class="value">${num.format(totals.byPlan.pro || 0)}</div></div>
+      <div class="kpi"><div class="label">Business</div><div class="value">${num.format(totals.byPlan.business || 0)}</div></div>
+    </div>
+    ${!tenants.length ? '<div class="panel"><div class="empty">Todavía no hay comercios registrados.</div></div>'
+    : `<div class="list" style="margin-top:16px">${tenants.map((t) => `
+      <div class="list-item">
+        <div class="li-main">
+          <div class="li-title">${esc(t.name)} <span class="badge badge-muted">${esc(t.slug)}</span></div>
+          <div class="li-sub">${esc(t.ownerEmail)} · ${num.format(t.products)} productos · ${num.format(t.orders)} pedidos · ${money.format(t.revenue)} cobrado</div>
+          <div class="li-sub">Alta ${new Date(t.createdAt).toLocaleDateString('es-AR')}</div>
+        </div>
+        <div class="li-actions">
+          <a class="btn btn-sm" href="${location.origin}/r/${esc(t.slug)}" target="_blank" rel="noopener">Ver landing ↗</a>
+          <select class="input" data-plan-for="${t.id}" style="width:auto;min-height:38px;padding:6px 10px">
+            ${planOpts.map((p) => `<option value="${p}" ${p === t.plan ? 'selected' : ''}>${esc(plans[p].label)}</option>`).join('')}
+          </select>
+        </div>
+      </div>`).join('')}</div>`}`;
+
+  host.querySelectorAll('[data-plan-for]').forEach((sel) => sel.addEventListener('change', async () => {
+    try { await adminApi.setPlan(sel.dataset.planFor, sel.value); toast('Plan actualizado', 'success'); }
+    catch (ex) { toast(ex.message || 'No se pudo cambiar el plan', 'error'); reload(); }
+  }));
 }

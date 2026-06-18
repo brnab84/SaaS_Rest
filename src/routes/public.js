@@ -33,6 +33,7 @@ router.get('/:slug/menu', resolveTenant, async (req, res, next) => {
         slug: req.tenant.slug,
         currency: req.tenant.settings?.currency || 'ARS',
         storeOpen: req.tenant.settings?.storeOpen !== false,
+        allowCancel: req.tenant.settings?.allowCancel !== false,
         branding: req.tenant.branding || {},
       },
       products,
@@ -126,6 +127,7 @@ router.get('/:slug/orders/:id', resolveTenant, async (req, res, next) => {
 // Solo permitido mientras siga "nuevo" (sin confirmar por el comercio). El id actúa de token.
 router.post('/:slug/orders/:id/cancel', resolveTenant, async (req, res, next) => {
   try {
+    if (req.tenant.settings?.allowCancel === false) return next(badRequest('Este comercio no permite cancelar pedidos online. Contactalo para cancelar.'));
     if (!mongoose.isValidObjectId(req.params.id)) return next(notFound('Pedido no encontrado'));
     const order = await Order.findOne({ _id: req.params.id, tenantId: req.tenant._id });
     if (!order) return next(notFound('Pedido no encontrado'));

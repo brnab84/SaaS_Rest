@@ -79,6 +79,12 @@ export const productsApi = {
   remove: (id) => request(`/products/${id}`, { method: 'DELETE' }),
 };
 
+// Panel de administración (solo root / dueño de la app)
+export const adminApi = {
+  overview: () => request('/admin/overview'),
+  setPlan: (id, plan) => request(`/admin/tenants/${id}/plan`, { method: 'PATCH', body: { plan } }),
+};
+
 export const ordersApi = {
   list: (status) => request(`/orders${status ? `?status=${status}` : ''}`),
   setStatus: (id, status) => request(`/orders/${id}/status`, { method: 'PATCH', body: { status } }),
