@@ -22,10 +22,20 @@ const waReply = (o) => `Hola ${o.customer?.name || ''}! Te escribimos por tu ped
 const loading = (host) => { host.innerHTML = '<div class="spinner">Cargando…</div>'; };
 
 /* ===================== RESUMEN ===================== */
-export async function renderResumen(host) {
+const PERIODS = { 30: 'Últimos 30 días', 90: 'Últimos 90 días', 365: 'Último año' };
+export async function renderResumen(host, opts = {}) {
+  const days = PERIODS[opts.days] ? opts.days : 30;
+  // Rango explícito: el backend filtra ventas y gastos por estas fechas.
+  const to = new Date();
+  const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const q = `?from=${from.toISOString()}&to=${to.toISOString()}`;
   host.innerHTML = `
-    <div class="view-head"><h1>Resumen</h1><span class="muted">últimos 30 días</span></div>
-    <p class="help">Vista general de tu negocio: ventas cobradas, pedidos, gastos y ganancia de los últimos 30 días. Los números se llenan a medida que cargás productos y entran pedidos.</p>
+    <div class="view-head"><h1>Resumen</h1>
+      <select class="input" id="period" style="width:auto;min-height:38px;padding:6px 10px">
+        ${Object.entries(PERIODS).map(([d, l]) => `<option value="${d}" ${Number(d) === days ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>
+    </div>
+    <p class="help">Vista general de tu negocio: ventas cobradas, pedidos, gastos y ganancia del período elegido (arriba a la derecha). Ojo: acá solo se ven los gastos <strong>con fecha dentro del período</strong>; si cargaste uno con fecha vieja, ampliá el período o corregí su fecha en Gastos.</p>
     <div id="kpis" class="kpi-grid"><div class="spinner">Cargando…</div></div>
     <div class="panel-grid">
       <div class="panel"><h2>Ventas por día</h2><div id="r-sales">—</div></div>
@@ -45,7 +55,9 @@ export async function renderResumen(host) {
       <div id="r-fc" style="margin-top:12px"></div>
     </div>`;
 
-  const [s, sales, exp, prod] = await Promise.allSettled([api.summary(), api.sales(), api.expenses(), api.products()]);
+  host.querySelector('#period').addEventListener('change', (e) => renderResumen(host, { days: Number(e.target.value) }));
+
+  const [s, sales, exp, prod] = await Promise.allSettled([api.summary(q), api.sales(q), api.expenses(q), api.products(q)]);
   const kpis = host.querySelector('#kpis');
   if (s.status === 'fulfilled') {
     const d = s.value; const profit = d.grossProfit ?? (d.revenue - d.expenses);
