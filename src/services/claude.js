@@ -182,6 +182,54 @@ export async function suggestInstagramPosts({ businessName, products = [], tone 
   return parseJson(res);
 }
 
+// --- Importar menú: PDF / imagen / texto → productos estructurados ---------
+
+const menuSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    products: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          name: { type: 'string' },
+          description: { type: 'string' },
+          price: { type: 'number', description: 'Precio numérico, sin símbolo de moneda' },
+          category: { type: 'string', description: 'Sección del menú (ej. Entradas, Rolls)' },
+        },
+        required: ['name', 'price'],
+      },
+    },
+  },
+  required: ['products'],
+};
+
+const MENU_PROMPT = 'Extraé TODOS los productos de este menú de restaurante. Por cada uno: nombre, '
+  + 'descripción (si está), precio (número sin símbolo) y categoría/sección. Omití ítems sin precio.';
+
+// Recibe { fileBase64, mediaType, isPdf } (archivo) o { text } (texto pegado).
+export async function extractMenu({ fileBase64, mediaType, isPdf, text }) {
+  const content = [];
+  if (fileBase64) {
+    content.push(isPdf
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: fileBase64 } }
+      : { type: 'image', source: { type: 'base64', media_type: mediaType, data: fileBase64 } });
+    content.push({ type: 'text', text: MENU_PROMPT });
+  } else {
+    content.push({ type: 'text', text: `${MENU_PROMPT}\n\nMenú:\n${text}` });
+  }
+  const res = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 8000,
+    thinking: { type: 'adaptive' },
+    output_config: { format: { type: 'json_schema', schema: menuSchema }, effort: 'low' },
+    messages: [{ role: 'user', content }],
+  });
+  return parseJson(res);
+}
+
 // El SDK puebla parsed_output cuando se usa output_config.format; con fallback a parsear el texto.
 function parseJson(res) {
   if (res.parsed_output) return res.parsed_output;

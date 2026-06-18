@@ -61,8 +61,9 @@ export function formModal({ title, fields, submitLabel = 'Guardar', values = {},
       const node = ov.card.querySelector(`[name="${f.name}"]`);
       if (!node) continue;
       data[f.name] = f.type === 'checkbox' ? node.checked
-        : f.type === 'number' ? (node.value === '' ? undefined : Number(node.value))
-          : node.value.trim();
+        : f.type === 'file' ? (node.files[0] || undefined)
+          : f.type === 'number' ? (node.value === '' ? undefined : Number(node.value))
+            : node.value.trim();
     }
     btn.disabled = true; btn.textContent = 'Guardando…';
     try { await onSubmit(data); close(); }
@@ -82,6 +83,8 @@ function fieldHTML(f, val) {
     input = `<select class="input" name="${f.name}" ${req}>${opts}</select>`;
   } else if (f.type === 'checkbox') {
     return `<label class="field-check"><input type="checkbox" name="${f.name}" ${v ? 'checked' : ''}/> ${esc(f.label)}</label>`;
+  } else if (f.type === 'file') {
+    input = `<input class="input" type="file" name="${f.name}" ${f.accept ? `accept="${esc(f.accept)}"` : ''}/>`;
   } else {
     input = `<input class="input" type="${f.type || 'text'}" name="${f.name}" value="${esc(v)}" ${req} ${f.step ? `step="${f.step}"` : ''} ${f.min != null ? `min="${f.min}"` : ''} placeholder="${esc(f.placeholder || '')}"/>`;
   }

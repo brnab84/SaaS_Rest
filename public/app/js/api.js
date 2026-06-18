@@ -89,6 +89,24 @@ export const campaignsApi = {
   suggest: () => request('/campaigns/suggest', { method: 'POST' }),
 };
 
+// Importar menú: archivo (PDF/imagen) o texto pegado → la IA crea los productos.
+export async function importProducts({ file, text }) {
+  const token = getToken();
+  let opts;
+  if (file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    opts = { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd };
+  } else {
+    opts = { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ text }) };
+  }
+  const res = await fetch('/api/products/import', opts);
+  if (res.status === 401) { logout(); throw new ApiError('Sesión expirada', 401); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(data?.error?.message || 'No se pudo importar', res.status);
+  return data;
+}
+
 // Subida multipart de la foto de factura para OCR.
 export async function uploadExpenseOcr(file) {
   const fd = new FormData();

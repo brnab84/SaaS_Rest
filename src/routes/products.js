@@ -1,12 +1,38 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { Product } from '../models/Product.js';
-import { notFound } from '../utils/errors.js';
+import { extractMenu } from '../services/claude.js';
+import { notFound, badRequest } from '../utils/errors.js';
 
 const router = Router();
 router.use(requireAuth);
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+
+// Importar menú con IA: subí un PDF/imagen (campo "file") o pegá el texto (campo "text").
+router.post('/import', requireRole('owner', 'admin'), upload.single('file'), async (req, res, next) => {
+  try {
+    let data;
+    if (req.file) {
+      const isPdf = req.file.mimetype === 'application/pdf';
+      if (!isPdf && !req.file.mimetype?.startsWith('image/')) return next(badRequest('El archivo debe ser un PDF o una imagen'));
+      data = await extractMenu({ fileBase64: req.file.buffer.toString('base64'), mediaType: req.file.mimetype, isPdf });
+    } else if (req.body?.text) {
+      data = await extractMenu({ text: String(req.body.text).slice(0, 20000) });
+    } else {
+      return next(badRequest('Subí un PDF/imagen o pegá el texto del menú'));
+    }
+    const docs = (data.products || [])
+      .filter((p) => p.name && typeof p.price === 'number')
+      .map((p) => ({ tenantId: req.auth.tenantId, name: p.name, description: p.description, price: p.price, category: p.category, available: true }));
+    if (!docs.length) return res.json({ imported: 0 });
+    const created = await Product.insertMany(docs);
+    res.status(201).json({ imported: created.length });
+  } catch (e) { next(e); }
+});
 
 const ingredientSchema = z.object({
   name: z.string().min(1),

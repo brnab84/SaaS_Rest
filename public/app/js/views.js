@@ -1,4 +1,4 @@
-import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr } from './api.js';
+import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts } from './api.js';
 import { money, num, esc, formModal, confirmDialog, toast, onInterval, clearTimers } from './ui.js';
 import { renderThemePicker } from './themes.js';
 
@@ -103,6 +103,7 @@ export async function renderMenu(host) {
     <div class="view-head"><h1>Menú</h1>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn" id="share-wa">Compartir por WhatsApp</button>
+        <button class="btn" id="import-ai">Importar con IA</button>
         <button class="btn" id="import-prod">Importar CSV</button>
         <button class="btn btn-accent" id="add">+ Agregar producto</button>
         <input type="file" accept=".csv,text/csv" id="prod-csv" hidden />
@@ -153,6 +154,25 @@ export async function renderMenu(host) {
     for (const r of rows) { try { await productsApi.create({ name: r.name, price: r.price, category: r.category || undefined, available: true }); ok += 1; } catch {} }
     toast(`${ok} productos importados`, 'success'); reload();
   });
+
+  host.querySelector('#import-ai').addEventListener('click', () => formModal({
+    title: 'Importar menú con IA',
+    submitLabel: 'Importar',
+    fields: [
+      { name: 'file', label: 'Subí tu menú (PDF o foto)', type: 'file', accept: 'application/pdf,image/*' },
+      { name: 'text', label: '…o pegá el menú como texto', type: 'textarea', placeholder: 'Cada ítem con su nombre y precio (y su sección si querés)' },
+    ],
+    onSubmit: async (v) => {
+      if (!v.file && !v.text) throw new Error('Subí un archivo o pegá el texto');
+      toast('Leyendo el menú con IA…', 'info');
+      try {
+        const r = await importProducts({ file: v.file, text: v.text });
+        toast(`${r.imported} productos importados`, 'success'); reload();
+      } catch (ex) {
+        throw new Error(ex.status === 503 ? 'La IA no está configurada (falta ANTHROPIC_API_KEY).' : (ex.message || 'No se pudo importar'));
+      }
+    },
+  }));
 }
 
 /* ===================== PEDIDOS ===================== */
