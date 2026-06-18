@@ -51,6 +51,7 @@
         <button id="ra-token-save" class="ra-btn ra-accent">Guardar token</button>
       </div>
       <div id="ra-list" class="ra-list"></div>
+      <div class="ra-defcat"><input id="ra-default-cat" class="ra-in" placeholder="Categoría para todos (opcional)" /></div>
       <div class="ra-foot">
         <span id="ra-count">0 productos</span>
         <button id="ra-import" class="ra-btn ra-accent">Importar a RestaurApp</button>
@@ -128,8 +129,7 @@
     const name = lines.find((l) => l !== priceLine && !PRICE_RE.test(l) && !NOISE_RE.test(l) && l.length > 1 && l.length <= 60);
     if (!name || !Number.isFinite(price) || price <= 0) return null;
     const desc = lines.filter((l) => l !== name && l !== priceLine && !NOISE_RE.test(l)).join(' ').slice(0, 280);
-    const img = card.querySelector('img');
-    return { name, price, desc, category: '', imgUrl: img && img.src ? img.src : '' };
+    return { name, price, desc, category: '', imgUrl: bestImage(card) };
   }
 
   function addItem(item) {
@@ -187,6 +187,18 @@
     return PRICE_RE.test((card.textContent || '')) ? card : null;
   }
 
+  // Elige la imagen más grande de la tarjeta (descarta íconos data: y miniaturas chicas).
+  function bestImage(card) {
+    let best = ''; let bestArea = 0;
+    for (const im of card.querySelectorAll('img')) {
+      const src = im.currentSrc || im.src || '';
+      if (!src || src.startsWith('data:')) continue;
+      const area = (im.naturalWidth || im.width || 0) * (im.naturalHeight || im.height || 0);
+      if (area >= bestArea) { bestArea = area; best = src; }
+    }
+    return best;
+  }
+
   /* ---------- Lista ---------- */
   function renderList() {
     const list = document.getElementById('ra-list');
@@ -218,10 +230,12 @@
     const { ra_token: token, ra_api: apiBase } = await session();
     if (!token || !apiBase) { setStatus('⚠ No encuentro tu sesión. Abrí RestaurApp y logueate en otra pestaña.', 'warn'); return; }
 
+    const defCat = (document.getElementById('ra-default-cat')?.value || '').trim();
     importing = true;
     let ok = 0; let fail = 0;
     for (let i = 0; i < valid.length; i += 1) {
       const it = valid[i];
+      if (!it.category && defCat) it.category = defCat; // categoría por defecto para todo el import
       setStatus(`Importando ${i + 1}/${valid.length}: ${it.name}…`, 'ok');
       try {
         let photo = '';
@@ -261,7 +275,7 @@
 
   // Obtiene el binario de la imagen: intenta fetch directo y si falla, vía canvas.
   async function imgToBlob(url) {
-    try { const r = await fetch(url); if (r.ok) { const b = await r.blob(); if (b && b.size) return b; } } catch { /* sigue con canvas */ }
+    try { const r = await fetch(url, { referrerPolicy: 'no-referrer' }); if (r.ok) { const b = await r.blob(); if (b && b.size) return b; } } catch { /* sigue con canvas */ }
     return new Promise((resolve) => {
       const im = new Image();
       im.crossOrigin = 'anonymous';
