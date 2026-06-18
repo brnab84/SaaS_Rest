@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -6,11 +7,34 @@ import { Order } from '../models/Order.js';
 import { Tenant } from '../models/Tenant.js';
 import { createPaymentLink } from '../services/mercadopago.js';
 import { sendText } from '../services/whatsapp.js';
-import { notFound } from '../utils/errors.js';
+import { notFound, unauthorized } from '../utils/errors.js';
 import { resolveTenantSecret } from '../utils/secrets.js';
+import { orderEvents, emitOrderChange } from '../services/orderEvents.js';
 import { env } from '../config/env.js';
 
 const router = Router();
+
+// SSE: stream de cambios de pedidos en tiempo real (panel en vivo, push instantáneo).
+// EventSource no permite headers, así que el token JWT viaja por query (?token=).
+router.get('/stream', (req, res, next) => {
+  let tenantId;
+  try { tenantId = jwt.verify(req.query.token, env.jwtSecret).tenantId; }
+  catch { return next(unauthorized('Token inválido o expirado')); }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no', // evita buffering de proxies (Railway/nginx)
+  });
+  res.write('retry: 5000\n\n');
+
+  const ping = setInterval(() => res.write(': keep-alive\n\n'), 25000); // mantiene viva la conexión
+  const onChange = (tid) => { if (tid === String(tenantId)) res.write('event: change\ndata: {}\n\n'); };
+  orderEvents.on('change', onChange);
+  req.on('close', () => { clearInterval(ping); orderEvents.off('change', onChange); });
+});
+
 router.use(requireAuth);
 
 // Listar pedidos activos del tenant (panel en vivo)
@@ -37,6 +61,7 @@ router.patch('/:id/status', validate(statusSchema), async (req, res, next) => {
     order.timeline.push({ status: req.body.status, by: req.auth.userId });
     await order.save();
 
+    emitOrderChange(req.auth.tenantId); // panel en vivo (SSE)
     // Notificación opcional al cliente (best-effort, no bloquea la respuesta)
     notifyCustomer(req.auth.tenantId, order).catch(() => {});
     res.json(order);
@@ -71,6 +96,7 @@ router.post('/:id/pay', async (req, res, next) => {
     order.payment.status = 'paid';
     order.payment.amountPaid = order.total;
     await order.save();
+    emitOrderChange(req.auth.tenantId); // panel en vivo (SSE)
     res.json(order);
   } catch (e) { next(e); }
 });

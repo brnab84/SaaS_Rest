@@ -23,6 +23,16 @@ export async function sendTemplate({ phoneId, token, to, template, lang = 'es_AR
   });
 }
 
+// Lee productos del catálogo de WhatsApp/Meta Commerce (Graph API).
+// catalogId: ID del catálogo (Commerce Manager → Catálogo → Configuración).
+export async function fetchCatalogProducts({ catalogId, token, limit = 200 }) {
+  const url = `${GRAPH}/${catalogId}/products?fields=name,description,price,category&limit=${limit}&access_token=${encodeURIComponent(token)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Catálogo WhatsApp falló: ${res.status} ${await res.text()}`);
+  const json = await res.json();
+  return json.data || [];
+}
+
 async function post(phoneId, token, payload) {
   const res = await fetch(`${GRAPH}/${phoneId}/messages`, {
     method: 'POST',

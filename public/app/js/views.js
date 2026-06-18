@@ -1,5 +1,5 @@
-import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto } from './api.js';
-import { money, num, esc, formModal, confirmDialog, toast, onInterval, clearTimers, playPing, pushNotify, requestNotifyPermission, soundEnabled, setSoundEnabled, getTone, setTone } from './ui.js';
+import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto, importProductsFromWhatsApp, ordersStreamUrl } from './api.js';
+import { money, num, esc, formModal, confirmDialog, toast, onInterval, clearTimers, onCleanup, playPing, pushNotify, requestNotifyPermission, soundEnabled, setSoundEnabled, getTone, setTone } from './ui.js';
 import { renderThemePicker } from './themes.js';
 
 const CAT_ES = { supplies: 'Insumos', rent: 'Alquiler', salary: 'Sueldos', utilities: 'Servicios', other: 'Otros' };
@@ -145,6 +145,7 @@ export async function renderMenu(host) {
         <button class="btn" id="from-photo">📷 Desde foto</button>
         <button class="btn" id="share-wa">Compartir por WhatsApp</button>
         <button class="btn" id="import-ai">Importar con IA</button>
+        <button class="btn" id="import-wa">Importar de WhatsApp</button>
         <button class="btn" id="import-prod">Importar CSV</button>
         <button class="btn btn-accent" id="add">+ Agregar producto</button>
         <input type="file" accept=".csv,text/csv" id="prod-csv" hidden />
@@ -206,6 +207,26 @@ export async function renderMenu(host) {
     toast(`${ok} productos importados`, 'success'); reload();
   });
 
+  host.querySelector('#import-wa').addEventListener('click', () => {
+    if (!tenant.integrations?.whatsapp?.connected) {
+      toast('Primero conectá WhatsApp Business en Ajustes → Integraciones', 'info');
+      return;
+    }
+    formModal({
+      title: 'Importar catálogo de WhatsApp',
+      submitLabel: 'Importar',
+      fields: [
+        { name: 'catalogId', label: 'ID del catálogo', required: true, placeholder: 'Ej. 1234567890', help: 'Lo encontrás en Meta Commerce Manager → tu catálogo → Configuración → "ID del catálogo".' },
+      ],
+      onSubmit: async (v) => {
+        toast('Importando catálogo de WhatsApp…', 'info');
+        const r = await importProductsFromWhatsApp(v.catalogId);
+        toast(r.imported ? `${r.imported} productos importados` : 'No se encontraron productos en el catálogo', r.imported ? 'success' : 'info');
+        reload();
+      },
+    });
+  });
+
   host.querySelector('#import-ai').addEventListener('click', () => formModal({
     title: 'Importar menú con IA',
     submitLabel: 'Importar',
@@ -228,14 +249,17 @@ export async function renderMenu(host) {
 
 /* ===================== PEDIDOS ===================== */
 export async function renderPedidos(host, opts = {}) {
-  clearTimers(); // un solo timer activo: evita el parpadeo por timers acumulados
+  // Solo en carga real (no en refresco silencioso) reiniciamos timers + stream para no acumular.
+  if (!opts.silent) clearTimers();
   if (!opts.silent) loading(host);
   let items;
   try {
     items = await ordersApi.list();
   } catch (e) {
-    if (!opts.silent) host.innerHTML = `<div class="empty">${esc(e.message)} — reintentando…</div>`;
-    scheduleOrders(host); // se recupera solo en el próximo ciclo
+    if (!opts.silent) {
+      host.innerHTML = `<div class="empty">${esc(e.message)} — reintentando…</div>`;
+      scheduleOrders(host); startOrderStream(host); // se recupera solo en el próximo ciclo
+    }
     return;
   }
   const reload = () => renderPedidos(host);
@@ -257,7 +281,7 @@ export async function renderPedidos(host, opts = {}) {
 
   host.innerHTML = `
     <div class="view-head"><h1>Pedidos</h1><div style="display:flex;gap:10px;align-items:center"><span class="live">● En vivo</span><button class="btn btn-sm" id="refresh">Actualizar</button></div></div>
-    <p class="help">Acá caen los pedidos de tu landing, WhatsApp y delivery. Tocá el botón azul para <strong>avanzar el estado</strong> (Nuevo → Confirmado → En cocina → Listo → En camino → Entregado); al cliente se le avisa por WhatsApp si tenés esa integración. La lista se actualiza sola cada 20 segundos.</p>
+    <p class="help">Acá caen los pedidos de tu landing, WhatsApp y delivery <strong>al instante</strong> (conexión en vivo; si se corta, igual refresca cada 25s). Tocá el botón azul para <strong>avanzar el estado</strong> (Nuevo → Confirmado → En cocina → Listo → En camino → Entregado); al cliente se le avisa por WhatsApp si tenés esa integración. Usá <strong>💬 WhatsApp</strong> para responderle rápido.</p>
     ${!items.length ? '<div class="panel"><div class="empty">No hay pedidos activos. Los pedidos de la landing, WhatsApp y delivery aparecen acá.</div></div>'
     : `<div class="list">${items.map((o) => {
       const next = nextStatus(o.status);
@@ -289,14 +313,24 @@ export async function renderPedidos(host, opts = {}) {
     if (await confirmDialog('¿Cancelar este pedido?')) { await ordersApi.setStatus(b.dataset.cancel, 'cancelled'); toast('Pedido cancelado', 'success'); reload(); }
   }));
 
-  scheduleOrders(host);
+  if (!opts.silent) { scheduleOrders(host); startOrderStream(host); }
 }
 
-// Un único timer de auto-refresco silencioso (sin spinner, sin acumular timers).
+// Polling de respaldo: refresco silencioso por si el stream SSE se cae. Un solo timer.
 function scheduleOrders(host) {
   onInterval(() => {
     if (document.visibilityState === 'visible' && document.body.contains(host)) renderPedidos(host, { silent: true });
-  }, 20000);
+  }, 25000);
+}
+
+// Stream SSE: cuando entra/cambia un pedido, el server avisa y refrescamos al instante.
+function startOrderStream(host) {
+  let es;
+  try { es = new EventSource(ordersStreamUrl()); } catch { return; }
+  es.addEventListener('change', () => {
+    if (document.visibilityState !== 'hidden' && document.body.contains(host)) renderPedidos(host, { silent: true });
+  });
+  onCleanup(() => { try { es.close(); } catch {} }); // el router lo cierra al cambiar de vista
 }
 
 /* ===================== GASTOS ===================== */
@@ -462,9 +496,11 @@ function parseExpensesCSV(text) {
 /* ===================== AJUSTES ===================== */
 export async function renderAjustes(host) {
   loading(host);
-  let tenant; let user;
-  try { const [t, m] = await Promise.all([tenantApi.get(), me()]); tenant = t; user = m.user; }
-  catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  let tenant; let user; let usage;
+  try {
+    const [t, m, u] = await Promise.all([tenantApi.get(), me(), tenantApi.usage().catch(() => null)]);
+    tenant = t; user = m.user; usage = u;
+  } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const storeUrl = `${location.origin}/r/${tenant.slug}`;
   const ig = tenant.integrations || {};
   const open = tenant.settings?.storeOpen !== false;
@@ -472,6 +508,18 @@ export async function renderAjustes(host) {
   const coverUrl = tenant.branding?.cover;
   const cats = tenant.settings?.categories || [];
   const om = tenant.settings?.orderMessages || {};
+  // Plan y uso (Infinity llega como null = sin límite)
+  const planId = usage?.plan || tenant.plan || 'free';
+  const plans = usage?.plans || {};
+  const used = usage?.usage || {};
+  const lim = usage?.limits || {};
+  const limTxt = (v) => (v == null ? '∞' : num.format(v));
+  const usageBar = (val, max) => {
+    if (max == null) return '';
+    const pct = Math.min(100, Math.round((val / max) * 100));
+    const color = pct >= 100 ? 'var(--danger)' : pct >= 80 ? 'var(--accent)' : 'var(--success)';
+    return `<div style="height:8px;background:var(--surface-2);border-radius:6px;overflow:hidden;margin-top:6px"><div style="height:100%;width:${pct}%;background:${color}"></div></div>`;
+  };
   const badge = (c) => (c ? '<span class="badge" style="color:var(--success)">Conectado</span>' : '<span class="badge badge-muted">Sin conectar</span>');
 
   host.innerHTML = `
@@ -552,6 +600,24 @@ export async function renderAjustes(host) {
       <div class="kv"><span>Moneda</span><strong>${esc(tenant.settings?.currency || 'ARS')}</strong></div>
     </div>
     <div class="panel">
+      <h2>Plan y uso</h2>
+      <p class="muted" style="margin:0 0 12px">Tu plan define cuántos <strong>productos</strong> y <strong>pedidos por mes</strong> podés tener. El cambio de plan es inmediato; el cobro automático se activa cuando conectes el pago.</p>
+      <div class="kv"><span>Plan actual</span><strong>${esc(plans[planId]?.label || planId)}</strong></div>
+      <div style="margin-top:12px">
+        <div class="kv"><span>Productos</span><strong>${num.format(used.products || 0)} / ${limTxt(lim.products)}</strong></div>
+        ${usageBar(used.products || 0, lim.products)}
+      </div>
+      <div style="margin-top:12px">
+        <div class="kv"><span>Pedidos este mes</span><strong>${num.format(used.ordersThisMonth || 0)} / ${limTxt(lim.ordersPerMonth)}</strong></div>
+        ${usageBar(used.ordersThisMonth || 0, lim.ordersPerMonth)}
+      </div>
+      <h3 style="margin:16px 0 8px;font-size:14px">Cambiar de plan</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${Object.entries(plans).map(([id, p]) => `<button class="btn btn-sm ${id === planId ? 'btn-accent' : ''}" data-plan="${id}" ${id === planId ? 'disabled' : ''}>${esc(p.label)} · ${p.priceMonthly ? `${money.format(p.priceMonthly)}/mes` : 'gratis'}</button>`).join('')}
+      </div>
+      <p class="muted" style="font-size:12px;margin-top:8px">${esc(plans[planId]?.blurb || '')}</p>
+    </div>
+    <div class="panel">
       <h2>Integraciones</h2>
       <p class="muted" style="margin:0 0 12px">Conectá tus cuentas. Los tokens se guardan cifrados y no se vuelven a mostrar.</p>
       <div class="kv"><span>WhatsApp Business</span><span style="display:flex;gap:8px;align-items:center">${badge(ig.whatsapp?.connected)}<button class="btn btn-sm" data-cfg="whatsapp">Configurar</button></span></div>
@@ -612,6 +678,14 @@ export async function renderAjustes(host) {
     submitLabel: 'Guardar',
     fields: Object.entries(MSG_LABELS).map(([k, label]) => ({ name: k, label, type: 'textarea', value: om[k] || '', placeholder: DEFAULT_MSG[k] })),
     onSubmit: async (v) => { await tenantApi.update({ settings: { orderMessages: v } }); toast('Mensajes guardados', 'success'); renderAjustes(host); },
+  }));
+
+  // Cambiar de plan
+  host.querySelectorAll('[data-plan]').forEach((b) => b.addEventListener('click', async () => {
+    const id = b.dataset.plan; const label = plans[id]?.label || id;
+    if (!(await confirmDialog(`¿Cambiar tu plan a ${label}?`, { danger: false }))) return;
+    try { await tenantApi.setPlan(id); toast(`Plan cambiado a ${label}`, 'success'); renderAjustes(host); }
+    catch (ex) { toast(ex.message || 'No se pudo cambiar el plan', 'error'); }
   }));
 
   host.querySelector('#toggle-store')?.addEventListener('click', async () => {

@@ -6,12 +6,26 @@ import { validate } from '../middleware/validate.js';
 import { Product } from '../models/Product.js';
 import { Tenant } from '../models/Tenant.js';
 import { extractMenu, extractProductFromPhoto } from '../services/claude.js';
+import { fetchCatalogProducts } from '../services/whatsapp.js';
+import { resolveTenantSecret } from '../utils/secrets.js';
+import { getPlan } from '../config/plans.js';
 import { notFound, badRequest } from '../utils/errors.js';
 
 const router = Router();
 router.use(requireAuth);
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+
+// Verifica el límite de productos del plan antes de crear/importar. Lanza 400 si se supera.
+async function assertProductQuota(tenantId, adding = 1) {
+  const tenant = await Tenant.findById(tenantId).select('plan');
+  const limit = getPlan(tenant?.plan).limits.products;
+  if (!Number.isFinite(limit)) return; // sin límite (business)
+  const count = await Product.countDocuments({ tenantId });
+  if (count + adding > limit) {
+    throw badRequest(`Alcanzaste el límite de ${limit} productos de tu plan. Subí de plan en Ajustes → Plan y uso para cargar más.`);
+  }
+}
 
 // Importar menú con IA: subí un PDF/imagen (campo "file") o pegá el texto (campo "text").
 router.post('/import', requireRole('owner', 'admin'), upload.single('file'), async (req, res, next) => {
@@ -30,6 +44,29 @@ router.post('/import', requireRole('owner', 'admin'), upload.single('file'), asy
       .filter((p) => p.name && typeof p.price === 'number')
       .map((p) => ({ tenantId: req.auth.tenantId, name: p.name, description: p.description, price: p.price, category: p.category, available: true }));
     if (!docs.length) return res.json({ imported: 0 });
+    await assertProductQuota(req.auth.tenantId, docs.length);
+    const created = await Product.insertMany(docs);
+    res.status(201).json({ imported: created.length });
+  } catch (e) { next(e); }
+});
+
+// Importar el catálogo de WhatsApp Business (Meta Commerce). Usa el token cifrado del comercio.
+// Body: { catalogId }. El ID está en Commerce Manager → tu catálogo → Configuración.
+router.post('/import/whatsapp', requireRole('owner', 'admin'), async (req, res, next) => {
+  try {
+    const catalogId = String(req.body?.catalogId || '').trim();
+    if (!catalogId) return next(badRequest('Falta el ID del catálogo de WhatsApp'));
+    const tenant = await Tenant.findById(req.auth.tenantId).select('settings.whatsapp');
+    const wa = tenant?.settings?.whatsapp;
+    const token = resolveTenantSecret(wa?.tokenEnc, wa?.tokenRef);
+    if (!token) return next(badRequest('Conectá WhatsApp Business en Ajustes → Integraciones antes de importar'));
+    const raw = await fetchCatalogProducts({ catalogId, token });
+    const parsePrice = (p) => Number(String(p ?? '').replace(/[^\d.]/g, ''));
+    const docs = raw
+      .map((p) => ({ tenantId: req.auth.tenantId, name: p.name, description: p.description, price: parsePrice(p.price), category: p.category, available: true }))
+      .filter((p) => p.name && Number.isFinite(p.price) && p.price > 0);
+    if (!docs.length) return res.json({ imported: 0 });
+    await assertProductQuota(req.auth.tenantId, docs.length);
     const created = await Product.insertMany(docs);
     res.status(201).json({ imported: created.length });
   } catch (e) { next(e); }
@@ -90,6 +127,7 @@ router.get('/:id', async (req, res, next) => {
 // Crear producto (solo owner/admin)
 router.post('/', requireRole('owner', 'admin'), validate(productSchema), async (req, res, next) => {
   try {
+    await assertProductQuota(req.auth.tenantId, 1);
     const product = await Product.create({ ...req.body, tenantId: req.auth.tenantId });
     res.status(201).json(product);
   } catch (e) { next(e); }

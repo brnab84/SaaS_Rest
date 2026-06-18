@@ -7,6 +7,7 @@ import { Product } from '../models/Product.js';
 import { Order } from '../models/Order.js';
 import { notFound, badRequest } from '../utils/errors.js';
 import { generateOrderCode } from '../utils/orderCode.js';
+import { emitOrderChange } from '../services/orderEvents.js';
 
 const router = Router();
 
@@ -95,6 +96,7 @@ router.post('/:slug/orders', resolveTenant, validate(orderSchema), async (req, r
       timeline: [{ status: 'new', by: 'landing' }],
     });
 
+    emitOrderChange(req.tenant._id); // avisa al panel en vivo (SSE)
     // Respuesta acotada: el cliente público no necesita ver el documento completo.
     res.status(201).json({ id: order._id, code: order.code, total: order.total, status: order.status });
   } catch (e) { next(e); }
@@ -112,6 +114,7 @@ router.post('/:slug/orders/:id/cancel', resolveTenant, async (req, res, next) =>
     order.status = 'cancelled';
     order.timeline.push({ status: 'cancelled', by: 'landing' });
     await order.save();
+    emitOrderChange(req.tenant._id); // avisa al panel en vivo (SSE)
     res.json({ id: order._id, status: 'cancelled' });
   } catch (e) { next(e); }
 });

@@ -3,8 +3,11 @@ import { z } from 'zod';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { Tenant } from '../models/Tenant.js';
+import { Product } from '../models/Product.js';
+import { Order } from '../models/Order.js';
 import { encryptSecret } from '../utils/crypto.js';
 import { notFound } from '../utils/errors.js';
+import { PLANS, getPlan } from '../config/plans.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -32,6 +35,36 @@ router.get('/', async (req, res, next) => {
     const tenant = await Tenant.findById(req.auth.tenantId);
     if (!tenant) return next(notFound('Comercio no encontrado'));
     res.json(publicView(tenant));
+  } catch (e) { next(e); }
+});
+
+// Uso del plan: cuántos productos y pedidos llevás vs los límites de tu plan.
+router.get('/usage', async (req, res, next) => {
+  try {
+    const tenant = await Tenant.findById(req.auth.tenantId).select('plan');
+    const plan = getPlan(tenant?.plan);
+    const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
+    const [products, ordersThisMonth] = await Promise.all([
+      Product.countDocuments({ tenantId: req.auth.tenantId }),
+      Order.countDocuments({ tenantId: req.auth.tenantId, createdAt: { $gte: startOfMonth } }),
+    ]);
+    res.json({
+      plan: tenant?.plan || 'free',
+      plans: PLANS, // catálogo de planes para mostrar comparación y precios
+      limits: plan.limits, // Infinity se serializa como null = sin límite
+      usage: { products, ordersThisMonth },
+    });
+  } catch (e) { next(e); }
+});
+
+// Cambiar de plan. Hoy es alta manual (sin cobro); cuando haya credenciales de pago,
+// este endpoint pasará por el checkout de Mercado Pago/Stripe.
+const planSchema = z.object({ plan: z.enum(['free', 'pro', 'business']) });
+router.patch('/plan', requireRole('owner'), validate(planSchema), async (req, res, next) => {
+  try {
+    const tenant = await Tenant.findByIdAndUpdate(req.auth.tenantId, { $set: { plan: req.body.plan } }, { new: true });
+    if (!tenant) return next(notFound('Comercio no encontrado'));
+    res.json({ plan: tenant.plan });
   } catch (e) { next(e); }
 });
 

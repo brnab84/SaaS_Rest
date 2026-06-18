@@ -61,7 +61,15 @@ export const me = () => request('/auth/me');
 export const tenantApi = {
   get: () => request('/tenant'),
   update: (b) => request('/tenant', { method: 'PATCH', body: b }),
+  usage: () => request('/tenant/usage'),
+  setPlan: (plan) => request('/tenant/plan', { method: 'PATCH', body: { plan } }),
 };
+
+// URL del stream SSE de pedidos (el token va por query porque EventSource no manda headers).
+export function ordersStreamUrl() {
+  const t = getToken();
+  return `/api/orders/stream${t ? `?token=${encodeURIComponent(t)}` : ''}`;
+}
 
 export const productsApi = {
   list: () => request('/products'),
@@ -89,6 +97,11 @@ export const campaignsApi = {
   remove: (id) => request(`/campaigns/${id}`, { method: 'DELETE' }),
   suggest: () => request('/campaigns/suggest', { method: 'POST' }),
 };
+
+// Importar el catálogo de WhatsApp Business (requiere WhatsApp conectado + ID de catálogo).
+export function importProductsFromWhatsApp(catalogId) {
+  return request('/products/import/whatsapp', { method: 'POST', body: { catalogId } });
+}
 
 // Subir una imagen (logo, portada, foto de producto). Devuelve { url } absoluta.
 export async function uploadImage(file) {
