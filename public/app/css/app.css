@@ -150,6 +150,18 @@ button { font-family: var(--font); cursor: pointer; }
 .xls td.num, .xls th.num { text-align: right; font-family: var(--font-mono); }
 .xls tbody tr:hover { background: var(--surface-2); }
 .xls .xls-act { display: flex; gap: 4px; }
+/* Celdas editables (planilla) */
+.xls td { padding: 3px 4px; }
+.xls .xc, .xls .xn { width: 100%; min-width: 90px; border: 1px solid transparent; background: transparent; color: inherit; padding: 6px; border-radius: 6px; font: inherit; }
+.xls .xc:hover, .xls .xn:hover { border-color: var(--border-color); }
+.xls .xc:focus, .xls .xn:focus { border-color: var(--accent); background: var(--surface); outline: none; }
+.xls .xc.num, .xls .xn.num { min-width: 80px; text-align: right; font-family: var(--font-mono); }
+.xls select.xc, .xls select.xn { min-width: 110px; }
+.xls tbody.xls-new { border-top: 2px dashed var(--accent); }
+.xls tbody.xls-new tr { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.xls tr.saved { background: color-mix(in srgb, #16a34a 22%, transparent) !important; transition: background .4s; }
+.xls-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.xls-foot .help { flex: 1; min-width: 160px; margin: 0; }
 /* Filas de carga rápida de ítems de evento */
 .ev-row { display: grid; grid-template-columns: 1.5fr 1fr 90px 1fr 34px; gap: 6px; margin-bottom: 6px; align-items: center; }
 .ev-row .input { padding: 8px; font-size: 13px; }

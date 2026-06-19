@@ -136,6 +136,24 @@ test('eventos: crear, agregar ítems y calcular margen', async () => {
   assert.ok(generales.every((g) => !g.eventId));
 });
 
+test('gastos: carga masiva (bulk) tipo planilla', async () => {
+  const before = (await (await api('/api/expenses', { token: state.token })).json()).length;
+  const r = await api('/api/expenses/bulk', {
+    method: 'POST', token: state.token,
+    body: { items: [
+      { product: 'Harina 0000', vendor: 'jumbo', note: '1kg', total: 980, category: 'supplies' },
+      { product: 'Aceite', vendor: 'jumbo', note: '900ml', total: 1500, category: 'supplies' },
+      { product: 'Vacío (sin precio)', vendor: 'jumbo', total: 0 }, // se descarta
+    ] },
+  });
+  assert.equal(r.status, 201);
+  assert.equal((await r.json()).added, 2);
+  const list = await (await api('/api/expenses', { token: state.token })).json();
+  assert.equal(list.length, before + 2);
+  const harina = list.find((g) => g.items?.[0]?.desc === 'Harina 0000');
+  assert.ok(harina && harina.vendor === 'jumbo' && harina.note === '1kg');
+});
+
 test('chat comercio ↔ root', async () => {
   const s = await api('/api/messages', { method: 'POST', token: state.token, body: { text: 'Hola soporte' } });
   assert.equal(s.status, 201);

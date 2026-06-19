@@ -24,6 +24,11 @@ test('panel: comercio normal — todas las pestañas cargan sin error de consola
   await page.locator('.seg-btn[data-gt="generales"]').click();
   await page.locator('.seg-btn[data-view="table"]').click();
   await expect(page.locator('.xls')).toBeVisible();
+  // planilla editable: cargar una fila nueva en lote (ejercita /expenses/bulk)
+  await page.fill('.xls-new [data-f="product"]', 'Aceite QA');
+  await page.fill('.xls-new [data-f="total"]', '1200');
+  await page.click('#save-new');
+  await expect(page.locator('.xls tbody:not(.xls-new) input[value="Aceite QA"]')).toHaveCount(1);
   await page.locator('.seg-btn[data-view="cards"]').click();
   // un comercio normal NO debe ver la pestaña Admin
   await expect(page.locator('.tab[data-nav="admin"]')).toHaveCount(0);

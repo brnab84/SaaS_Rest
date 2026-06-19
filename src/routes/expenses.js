@@ -72,6 +72,38 @@ router.post('/', requireRole('owner', 'admin'), validate(expenseSchema), async (
   } catch (e) { next(e); }
 });
 
+// Carga masiva tipo planilla: varias filas (producto/proveedor/cantidad/precio) en una sola pasada.
+const bulkSchema = z.object({
+  items: z.array(z.object({
+    product: z.string().max(160).optional(),
+    vendor: z.string().max(80).optional(),
+    note: z.string().max(160).optional(), // cantidad
+    total: z.coerce.number().nonnegative(),
+    category: z.enum(CATEGORIES).optional(),
+    date: z.coerce.date().optional(),
+  })).min(1).max(300),
+});
+router.post('/bulk', requireRole('owner', 'admin'), validate(bulkSchema), async (req, res, next) => {
+  try {
+    const docs = req.body.items
+      .filter((i) => Number.isFinite(i.total) && i.total > 0)
+      .map((i) => ({
+        tenantId: req.auth.tenantId,
+        createdBy: req.auth.userId,
+        vendor: i.vendor || undefined,
+        note: i.note || undefined,
+        total: i.total,
+        category: i.category || 'other',
+        date: i.date || new Date(),
+        items: i.product ? [{ desc: i.product, amount: i.total }] : undefined,
+        ocrStatus: 'done',
+      }));
+    if (!docs.length) return res.json({ added: 0 });
+    const created = await Expense.insertMany(docs);
+    res.status(201).json({ added: created.length });
+  } catch (e) { next(e); }
+});
+
 router.patch('/:id', requireRole('owner', 'admin'), validate(expensePatchSchema), async (req, res, next) => {
   try {
     const expense = await Expense.findOneAndUpdate(

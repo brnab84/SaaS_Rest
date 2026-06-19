@@ -495,9 +495,21 @@ async function renderGenerales(host) {
     toast(`${ok} gastos importados`, 'success'); reload();
   });
 
-  // Vista (tarjetas / tabla) + orden por columna
+  // Vista (tarjetas / tabla editable) + orden por columna
   const prodOf = (x) => x.items?.[0]?.desc || x.vendor || 'Gasto';
   const fmtDay = (d) => new Date(d).toLocaleDateString('es-AR');
+  const ymd = (d) => new Date(d).toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  const catOpts = (val) => EXP_CATS.map((o) => `<option value="${o.value}" ${o.value === (val || 'supplies') ? 'selected' : ''}>${o.label}</option>`).join('');
+  let newRows = []; // filas de carga rápida aún sin guardar
+  const lastCtx = () => { // proveedor/día/categoría a "arrastrar" en la próxima fila
+    const r = newRows[newRows.length - 1];
+    if (r) return { vendor: r.vendor, date: r.date, category: r.category };
+    const x = items[0];
+    return { vendor: x?.vendor || '', date: today, category: x?.category || 'supplies' };
+  };
+  const addNewRow = () => { const c = lastCtx(); newRows.push({ date: c.date || today, product: '', vendor: c.vendor || '', note: '', total: '', category: c.category || 'supplies' }); };
+
   const sortedItems = () => {
     const { field: f, dir } = _expSort;
     return [...items].sort((a, b) => {
@@ -509,14 +521,59 @@ async function renderGenerales(host) {
       return va < vb ? -dir : va > vb ? dir : 0;
     });
   };
+
+  // Guarda inline una fila existente (PATCH) leyendo sus celdas
+  async function saveRow(tr) {
+    const id = tr.dataset.id;
+    const g = (f) => tr.querySelector(`[data-f="${f}"]`)?.value ?? '';
+    const total = Number(g('total'));
+    if (!Number.isFinite(total) || total < 0) { toast('Precio inválido', 'error'); return; }
+    const product = g('product').trim();
+    const body = {
+      vendor: g('vendor').trim() || undefined,
+      note: g('note').trim() || undefined,
+      total,
+      category: g('category'),
+      date: g('date') || undefined,
+      items: product ? [{ desc: product, amount: total }] : [],
+    };
+    const x = items.find((e) => e._id === id);
+    if (x && x.ocrStatus === 'review') body.ocrStatus = 'done';
+    try {
+      const updated = await expensesApi.update(id, body);
+      if (x) Object.assign(x, updated); // mantener `items` en sync sin recargar
+      tr.classList.add('saved'); setTimeout(() => tr.classList.remove('saved'), 700);
+    } catch (e) { toast(e.message || 'No se pudo guardar', 'error'); }
+  }
+
   function paint() {
     const view = getExpView();
     host.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === view));
     const box = host.querySelector('#genlist');
-    const list = sortedItems();
-    if (!list.length) { box.innerHTML = '<div class="panel"><div class="empty">Sin gastos cargados.</div></div>'; return; }
+
     if (view === 'table') {
+      if (!newRows.length) addNewRow();
       const arr = (f) => (_expSort.field === f ? (_expSort.dir < 0 ? ' ▾' : ' ▴') : '');
+      const list = sortedItems();
+      const vendors = [...new Set(items.map((x) => x.vendor).filter(Boolean))];
+      const existRows = list.map((x) => `<tr data-id="${x._id}">
+          <td><input class="xc" type="date" data-f="date" value="${ymd(x.date)}"></td>
+          <td><input class="xc" data-f="product" value="${esc(x.items?.[0]?.desc || '')}" placeholder="Producto">${x.ocrStatus === 'review' ? '<span class="badge badge-warn">OCR</span>' : ''}</td>
+          <td><input class="xc" data-f="vendor" list="exp-vendors" value="${esc(x.vendor || '')}" placeholder="Proveedor"></td>
+          <td><input class="xc" data-f="note" value="${esc(x.note || '')}" placeholder="Cant."></td>
+          <td><input class="xc num" type="number" step="0.01" min="0" data-f="total" value="${x.total}"></td>
+          <td><select class="xc" data-f="category">${catOpts(x.category)}</select></td>
+          <td class="xls-act"><button class="btn btn-sm btn-danger" data-del="${x._id}" title="Eliminar">✕</button></td>
+        </tr>`).join('');
+      const newRowsHtml = newRows.map((r, i) => `<tr class="new-row" data-new="${i}">
+          <td><input class="xn" type="date" data-f="date" value="${esc(r.date || today)}"></td>
+          <td><input class="xn" data-f="product" value="${esc(r.product)}" placeholder="Producto"></td>
+          <td><input class="xn" data-f="vendor" list="exp-vendors" value="${esc(r.vendor)}" placeholder="Proveedor"></td>
+          <td><input class="xn" data-f="note" value="${esc(r.note)}" placeholder="Cant."></td>
+          <td><input class="xn num" type="number" step="0.01" min="0" data-f="total" value="${esc(r.total)}" placeholder="0"></td>
+          <td><select class="xn" data-f="category">${catOpts(r.category)}</select></td>
+          <td class="xls-act"><button class="btn btn-sm" data-rmnew="${i}" title="Quitar fila">−</button></td>
+        </tr>`).join('');
       box.innerHTML = `<div class="xls-wrap"><table class="xls">
         <thead><tr>
           <th data-sort="date">Día${arr('date')}</th>
@@ -527,30 +584,54 @@ async function renderGenerales(host) {
           <th>Categoría</th>
           <th></th>
         </tr></thead>
-        <tbody>${list.map((x) => `<tr>
-          <td>${fmtDay(x.date)}</td>
-          <td>${esc(prodOf(x))} ${x.ocrStatus === 'review' ? '<span class="badge badge-warn">OCR</span>' : ''}</td>
-          <td>${esc(x.vendor || '')}</td>
-          <td>${esc(x.note || '')}</td>
-          <td class="num">${money.format(x.total)}</td>
-          <td>${esc(CAT_ES[x.category] || x.category || 'Otros')}</td>
-          <td class="xls-act"><button class="btn btn-sm" data-edit="${x._id}" title="Editar">✎</button><button class="btn btn-sm btn-danger" data-del="${x._id}" title="Eliminar">✕</button></td>
-        </tr>`).join('')}</tbody>
-      </table></div>`;
-    } else {
-      box.innerHTML = `<div class="list">${list.map((x) => {
-        const sub = [x.vendor && x.items?.[0]?.desc ? esc(x.vendor) : '', x.note ? esc(x.note) : '', esc(CAT_ES[x.category] || x.category || 'Otros'), fmtDay(x.date)].filter(Boolean).join(' · ');
-        return `<div class="list-item"><div class="li-main"><div class="li-title">${esc(prodOf(x))} ${x.ocrStatus === 'review' ? '<span class="badge badge-warn">Revisar (OCR)</span>' : ''}</div><div class="li-sub">${sub}</div></div><div class="li-amt">${money.format(x.total)}</div><div class="li-actions"><button class="btn btn-sm" data-edit="${x._id}">Editar</button><button class="btn btn-sm btn-danger" data-del="${x._id}">Eliminar</button></div></div>`;
-      }).join('')}</div>`;
+        <tbody>${existRows}</tbody>
+        <tbody class="xls-new">${newRowsHtml}</tbody>
+      </table></div>
+      <datalist id="exp-vendors">${vendors.map((v) => `<option value="${esc(v)}">`).join('')}</datalist>
+      <div class="xls-foot">
+        <button class="btn btn-sm" id="add-row">+ fila</button>
+        <span class="help">El proveedor y el día se copian de la fila anterior. Editá una celda de arriba y se guarda sola.</span>
+        <button class="btn btn-accent" id="save-new">Guardar filas nuevas</button>
+      </div>`;
+
+      box.querySelectorAll('tbody:not(.xls-new) .xc').forEach((el) => el.addEventListener('change', () => saveRow(el.closest('tr'))));
+      box.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
+        if (await confirmDialog('¿Eliminar este gasto?')) { await expensesApi.remove(b.dataset.del); items = items.filter((x) => x._id !== b.dataset.del); toast('Gasto eliminado', 'success'); paint(); }
+      }));
+      box.querySelectorAll('.xls-new .xn').forEach((el) => el.addEventListener('input', () => {
+        const i = Number(el.closest('tr').dataset.new);
+        if (newRows[i]) newRows[i][el.dataset.f] = el.value;
+      }));
+      box.querySelectorAll('[data-rmnew]').forEach((b) => b.addEventListener('click', () => { newRows.splice(Number(b.dataset.rmnew), 1); if (!newRows.length) addNewRow(); paint(); }));
+      box.querySelector('#add-row').addEventListener('click', () => { addNewRow(); paint(); const inp = box.querySelector('.xls-new tr:last-child [data-f="product"]'); if (inp) inp.focus(); });
+      box.querySelector('#save-new').addEventListener('click', async () => {
+        const toSave = newRows.filter((r) => Number(r.total) > 0);
+        if (!toSave.length) { toast('Cargá al menos una fila con precio', 'error'); return; }
+        toast(`Guardando ${toSave.length}…`, 'info');
+        try {
+          await expensesApi.bulk(toSave.map((r) => ({ product: r.product || undefined, vendor: r.vendor || undefined, note: r.note || undefined, total: Number(r.total), category: EXP_VALID.has(r.category) ? r.category : 'supplies', date: r.date || undefined })));
+          toast(`${toSave.length} gastos guardados`, 'success');
+          newRows = []; reload();
+        } catch (e) { toast(e.message || 'No se pudo guardar', 'error'); }
+      });
+      box.querySelectorAll('th[data-sort]').forEach((th) => th.addEventListener('click', () => {
+        const f = th.dataset.sort;
+        if (_expSort.field === f) _expSort.dir *= -1; else _expSort = { field: f, dir: f === 'date' ? -1 : 1 };
+        paint();
+      }));
+      return;
     }
+
+    // Vista tarjetas (solo lectura)
+    const list = sortedItems();
+    if (!list.length) { box.innerHTML = '<div class="panel"><div class="empty">Sin gastos cargados.</div></div>'; return; }
+    box.innerHTML = `<div class="list">${list.map((x) => {
+      const sub = [x.vendor && x.items?.[0]?.desc ? esc(x.vendor) : '', x.note ? esc(x.note) : '', esc(CAT_ES[x.category] || x.category || 'Otros'), fmtDay(x.date)].filter(Boolean).join(' · ');
+      return `<div class="list-item"><div class="li-main"><div class="li-title">${esc(prodOf(x))} ${x.ocrStatus === 'review' ? '<span class="badge badge-warn">Revisar (OCR)</span>' : ''}</div><div class="li-sub">${sub}</div></div><div class="li-amt">${money.format(x.total)}</div><div class="li-actions"><button class="btn btn-sm" data-edit="${x._id}">Editar</button><button class="btn btn-sm btn-danger" data-del="${x._id}">Eliminar</button></div></div>`;
+    }).join('')}</div>`;
     box.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(items.find((x) => x._id === b.dataset.edit))));
     box.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
       if (await confirmDialog('¿Eliminar este gasto?')) { await expensesApi.remove(b.dataset.del); toast('Gasto eliminado', 'success'); reload(); }
-    }));
-    box.querySelectorAll('th[data-sort]').forEach((th) => th.addEventListener('click', () => {
-      const f = th.dataset.sort;
-      if (_expSort.field === f) _expSort.dir *= -1; else _expSort = { field: f, dir: f === 'date' ? -1 : 1 };
-      paint();
     }));
   }
   host.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => { setExpView(b.dataset.view); paint(); }));

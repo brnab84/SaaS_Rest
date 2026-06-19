@@ -106,6 +106,7 @@ export const ordersApi = {
 export const expensesApi = {
   list: () => request('/expenses'),
   create: (b) => request('/expenses', { method: 'POST', body: b }),
+  bulk: (items) => request('/expenses/bulk', { method: 'POST', body: { items } }),
   update: (id, b) => request(`/expenses/${id}`, { method: 'PATCH', body: b }),
   remove: (id) => request(`/expenses/${id}`, { method: 'DELETE' }),
 };
