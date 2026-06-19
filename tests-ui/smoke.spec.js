@@ -30,16 +30,18 @@ test('panel: comercio normal — todas las pestañas cargan sin error de consola
   await page.click('#save-new');
   await expect(page.locator('.xls tbody:not(.xls-new) input[value="Aceite QA"]')).toHaveCount(1);
   await page.locator('.seg-btn[data-view="cards"]').click();
-  // un comercio normal NO debe ver la pestaña Admin
+  // un comercio normal NO debe ver la pestaña ni el botón Admin
   await expect(page.locator('.tab[data-nav="admin"]')).toHaveCount(0);
+  await expect(page.locator('.btn-admin')).toHaveCount(0);
   expect(errors, `errores de consola:\n${errors.join('\n')}`).toEqual([]);
 });
 
 test('panel: la cuenta root ve la pestaña Admin y abre el panel', async ({ page }) => {
   await login(page, 'root@test.local');
-  const adminTab = page.locator('.tab[data-nav="admin"]');
-  await expect(adminTab).toBeVisible({ timeout: 10000 }); // aparece tras detectRoot
-  await adminTab.click();
+  // botón Admin fijo en la barra superior (siempre visible, no depende del scroll del nav)
+  const adminBtn = page.locator('.btn-admin');
+  await expect(adminBtn).toBeVisible({ timeout: 10000 }); // aparece tras detectRoot
+  await adminBtn.click();
   await expect(page.locator('.view-head h1')).toContainText('Administración');
 });
 

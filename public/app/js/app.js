@@ -165,6 +165,7 @@ function renderApp() {
       <header class="topbar">
         <span class="brand">${brandHtml()}</span>
         <div class="spacer"></div>
+        ${rootUser ? '<a class="btn btn-sm btn-admin" href="#/admin" data-nav="admin">🛡️ Admin</a>' : ''}
         <button class="btn btn-sm" id="logout">Salir</button>
       </header>
       <nav class="tabs">${tabs('tab')}</nav>
@@ -182,6 +183,8 @@ function onRoute() {
   clearTimers(); // detener auto-refresco de la vista anterior
   const id = currentRoute();
   document.querySelectorAll('[data-nav]').forEach((a) => a.setAttribute('aria-current', a.dataset.nav === id ? 'page' : 'false'));
+  // En el menú inferior (móvil), traer a la vista la pestaña activa (evita que Admin quede fuera de pantalla).
+  document.querySelector(`.bottom-nav [data-nav="${id}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest' });
   const entry = navItems().find((n) => n.id === id);
   entry.view(document.getElementById('view'));
   if (_msgPollStarted) pollMensajes(); // refresca el badge (al salir de Mensajes se limpia)
