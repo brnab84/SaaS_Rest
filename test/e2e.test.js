@@ -22,6 +22,7 @@ before(async () => {
   process.env.ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef';
   process.env.ROOT_EMAIL = ROOT_EMAIL;
   process.env.REGISTRATION_OPEN = 'true';
+  process.env.RATE_LIMIT_OFF = '1';
   process.env.LOG_LEVEL = 'silent';
   const { connectDB } = await import('../src/config/db.js');
   await connectDB();

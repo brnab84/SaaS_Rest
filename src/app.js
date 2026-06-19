@@ -47,8 +47,10 @@ export function createApp() {
     verify: (req, _res, buf) => { req.rawBody = buf; },
   }));
 
-  const apiLimiter = rateLimit({ windowMs: 60_000, max: 120 });
-  const authLimiter = rateLimit({ windowMs: 60_000, max: 10 });
+  // En tests corremos muchas requests seguidas desde la misma IP: RATE_LIMIT_OFF las desactiva.
+  const rlOff = process.env.RATE_LIMIT_OFF === '1';
+  const apiLimiter = rateLimit({ windowMs: 60_000, max: 120, skip: () => rlOff });
+  const authLimiter = rateLimit({ windowMs: 60_000, max: 10, skip: () => rlOff });
 
   app.get('/health', (_req, res) => res.json({ ok: true }));
 

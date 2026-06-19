@@ -48,6 +48,18 @@ test('panel: la cuenta root ve la pestaña Admin y abre el panel', async ({ page
   await expect(page.locator('.view-head h1')).toContainText('Administración');
 });
 
+test('panel: recargar estando ya logueado no rompe (regresión TDZ _msgPollStarted)', async ({ page }) => {
+  const errors = [];
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await login(page, 'root@test.local');
+  await page.reload(); // carga con la sesión ya iniciada (token en localStorage): este camino crasheaba
+  await expect(page.locator('.shell')).toBeVisible();
+  await expect(page.locator('.btn-admin')).toBeVisible({ timeout: 10000 }); // detectRoot corre tras el arranque
+  await expect(page.locator('.user-email')).toHaveText('root@test.local');
+  expect(errors, `errores de consola:\n${errors.join('\n')}`).toEqual([]);
+});
+
 test('storefront: la landing carga el menú', async ({ page }) => {
   await page.goto('/r/qa-demo');
   await expect(page.locator('.hero h1')).toBeVisible();

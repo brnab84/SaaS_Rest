@@ -40,14 +40,9 @@ function brandHtml() {
   return 'RestaurApp<span class="dot">.</span>';
 }
 
-applyTheme(getTheme());
-// Al cambiar el tema, persistirlo en el comercio (así la landing usa el mismo).
-setThemeChangeHandler((id) => { if (isAuthed()) tenantApi.update({ branding: { theme: id } }).catch(() => {}); });
-registerSW();
-window.addEventListener('hashchange', onRoute);
-start();
-syncTenantTheme();
-setupAutoUpdate();
+// El arranque (bootstrap) se ejecuta al FINAL del archivo (ver bottom), después de declarar
+// todas las variables, para evitar errores de "Cannot access X before initialization" (TDZ)
+// cuando la página carga con una sesión ya iniciada.
 
 /* ---------- Auto-actualización: forzar la última versión ---------- */
 let bootVer = null;
@@ -286,3 +281,13 @@ function registerSW() {
   });
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
+
+/* ---------- Arranque (al final: todo ya está declarado) ---------- */
+applyTheme(getTheme());
+// Al cambiar el tema, persistirlo en el comercio (así la landing usa el mismo).
+setThemeChangeHandler((id) => { if (isAuthed()) tenantApi.update({ branding: { theme: id } }).catch(() => {}); });
+registerSW();
+window.addEventListener('hashchange', onRoute);
+start();
+syncTenantTheme();
+setupAutoUpdate();

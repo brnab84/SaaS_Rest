@@ -8,6 +8,7 @@ process.env.JWT_SECRET = 'ui-smoke-secret-0123456789-abcdef';
 process.env.ENCRYPTION_KEY = '0123456789abcdef0123456789abcdef';
 process.env.ROOT_EMAIL = 'root@test.local';
 process.env.REGISTRATION_OPEN = 'true';
+process.env.RATE_LIMIT_OFF = '1'; // el smoke hace muchas requests seguidas desde la misma IP
 process.env.LOG_LEVEL = 'silent';
 process.env.PORT = process.env.PORT || '4173';
 
