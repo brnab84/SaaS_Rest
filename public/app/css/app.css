@@ -140,6 +140,9 @@ button { font-family: var(--font); cursor: pointer; }
 .seg { display: inline-flex; background: var(--surface-2); border: var(--border-w) var(--border-style) var(--border-color); border-radius: 999px; padding: 3px; }
 .seg-btn { border: none; background: none; color: var(--text-muted); font-weight: 700; font-size: 13px; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
 .seg-btn.on { background: var(--accent); color: #fff; }
+/* Email de la cuenta activa en la barra superior (para saber con cuál estás logueado) */
+.user-email { color: var(--muted); font-size: 13px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 640px) { .user-email { max-width: 130px; font-size: 12px; } }
 /* Acceso a Admin siempre visible en la barra superior (cuenta dueña de la app) */
 .btn-admin { background: var(--accent); color: #fff; border-color: var(--accent); white-space: nowrap; }
 .btn-admin:hover { filter: brightness(1.05); }

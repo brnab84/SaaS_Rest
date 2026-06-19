@@ -13,6 +13,8 @@ test('panel: comercio normal — todas las pestañas cargan sin error de consola
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push(String(e)));
   await login(page, 'qa@test.local');
+  // el topbar muestra el email de la cuenta activa
+  await expect(page.locator('.user-email')).toHaveText('qa@test.local', { timeout: 10000 });
   for (const id of ['resumen', 'menu', 'pedidos', 'gastos', 'campanias', 'mensajes', 'ajustes']) {
     await page.locator(`.tab[data-nav="${id}"]`).click();
     await expect(page.locator('.view-head h1')).toBeVisible();
@@ -38,6 +40,7 @@ test('panel: comercio normal — todas las pestañas cargan sin error de consola
 
 test('panel: la cuenta root ve la pestaña Admin y abre el panel', async ({ page }) => {
   await login(page, 'root@test.local');
+  await expect(page.locator('.user-email')).toHaveText('root@test.local', { timeout: 10000 });
   // botón Admin fijo en la barra superior (siempre visible, no depende del scroll del nav)
   const adminBtn = page.locator('.btn-admin');
   await expect(adminBtn).toBeVisible({ timeout: 10000 }); // aparece tras detectRoot

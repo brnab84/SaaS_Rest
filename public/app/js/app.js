@@ -28,6 +28,7 @@ const NAV = [
 const ADMIN_NAV = { id: 'admin', label: 'Admin', view: renderAdmin };
 let rootUser = false; // ¿la cuenta logueada es el dueño de la app? Habilita la pestaña Admin.
 let brandTenant = null; // si el plan tiene marca blanca, mostramos el logo/nombre del comercio
+let currentEmail = ''; // email de la cuenta activa (se muestra en el topbar)
 const navItems = () => (rootUser ? [...NAV, ADMIN_NAV] : NAV);
 // Marca del topbar: por defecto "RestaurApp."; con marca blanca, logo+nombre del comercio.
 function brandHtml() {
@@ -135,8 +136,12 @@ async function detectRoot() {
   let m;
   try { m = await me(); } catch { return; }
   rootUser = !!m.user?.isRoot;
+  currentEmail = m.user?.email || '';
   if (m.tenant?.whitelabel) brandTenant = m.tenant;
   if ((rootUser || brandTenant) && document.getElementById('view')) renderApp();
+  // Mostrar el email de la cuenta activa (tras cualquier re-render).
+  const el = document.querySelector('.user-email');
+  if (el) el.textContent = currentEmail;
 }
 
 function currentRoute() { const h = location.hash.replace('#/', ''); return navItems().some((n) => n.id === h) ? h : 'resumen'; }
@@ -165,6 +170,7 @@ function renderApp() {
       <header class="topbar">
         <span class="brand">${brandHtml()}</span>
         <div class="spacer"></div>
+        <span class="user-email" title="Cuenta con la que iniciaste sesión">${esc(currentEmail)}</span>
         ${rootUser ? '<a class="btn btn-sm btn-admin" href="#/admin" data-nav="admin">🛡️ Admin</a>' : ''}
         <button class="btn btn-sm" id="logout">Salir</button>
       </header>
