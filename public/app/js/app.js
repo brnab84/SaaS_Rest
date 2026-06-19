@@ -273,7 +273,16 @@ function renderSignup() {
 }
 
 function registerSW() {
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
-  }
+  if (!('serviceWorker' in navigator)) return;
+  // Cuando entra un service worker nuevo y toma control, recargamos una vez para que
+  // la app se actualice sola (sin tener que hacer Ctrl+Shift+R). Solo si ya había un SW
+  // controlando (evita una recarga innecesaria en la primera visita).
+  let refreshing = false;
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing || !hadController) return;
+    refreshing = true;
+    location.reload();
+  });
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }

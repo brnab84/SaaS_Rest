@@ -1,6 +1,6 @@
 // Service worker network-first: siempre intenta la red (así ves cada deploy al instante)
 // y usa el cache solo como respaldo offline. La versión del cache se bumpea con la app.
-const VERSION = '0.37.0';
+const VERSION = '0.38.0';
 const CACHE = `restaurapp-${VERSION}`;
 const ASSETS = [
   './', './index.html',
@@ -28,7 +28,9 @@ self.addEventListener('fetch', (e) => {
   if (!url.pathname.startsWith('/app')) return;      // solo el scope de la app
 
   e.respondWith(
-    fetch(e.request)
+    // `cache: 'reload'` evita que el navegador devuelva una copia vieja del HTTP cache:
+    // siempre baja la última versión del servidor cuando hay red.
+    fetch(e.request, { cache: 'reload' })
       .then((resp) => {
         const copy = resp.clone();
         caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
