@@ -168,6 +168,22 @@ button { font-family: var(--font); cursor: pointer; }
 .xls tr.saved { background: color-mix(in srgb, #16a34a 22%, transparent) !important; transition: background .4s; }
 .xls-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 .xls-foot .help { flex: 1; min-width: 160px; margin: 0; }
+/* Planilla Excel (Jspreadsheet CE) adaptada al tema de la app */
+.xls-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.xls-tools .help { flex: 1; min-width: 160px; margin: 0; }
+.jexcel_container { font-family: inherit; color: var(--text); max-width: 100%; }
+.jexcel_content { overflow: auto; max-width: 100%; }
+.jexcel > thead > tr > td, .jexcel > tbody > tr > td { border-color: var(--border-color); }
+.jexcel > thead > tr > td { background: var(--surface-2); color: var(--text); font-weight: 700; }
+.jexcel > tbody > tr > td { background: var(--surface); color: var(--text); }
+.jexcel > tbody > tr > td.jexcel_row { background: var(--surface-2); color: var(--muted); font-family: var(--font-mono); }
+.jexcel_corner { background: var(--surface-2) !important; }
+.jexcel_about { display: none !important; } /* sin marca de agua de la librería */
+.jexcel > tbody > tr > td.highlight { background: color-mix(in srgb, var(--accent) 16%, var(--surface)) !important; }
+.jexcel > tbody > tr.selected > td.jexcel_row, .jexcel > thead > tr > td.selected { background: color-mix(in srgb, var(--accent) 28%, var(--surface-2)) !important; }
+.jexcel_filter, .jss_toolbar, .jexcel_toolbar { background: var(--surface-2); color: var(--text); }
+/* el editor flotante (calendar/dropdown de jSuites) sobre fondo claro para legibilidad */
+.jdropdown-container, .jcalendar-container, .jss_object input.jexcel_input { color: #111; }
 /* Filas de carga rápida de ítems de evento */
 .ev-row { display: grid; grid-template-columns: 1.5fr 1fr 90px 1fr 34px; gap: 6px; margin-bottom: 6px; align-items: center; }
 .ev-row .input { padding: 8px; font-size: 13px; }

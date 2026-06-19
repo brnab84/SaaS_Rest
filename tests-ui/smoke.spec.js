@@ -25,17 +25,27 @@ test('panel: comercio normal — todas las pestañas cargan sin error de consola
   await expect(page.locator('#new-ev')).toBeVisible();
   await page.locator('.seg-btn[data-gt="generales"]').click();
   await page.locator('.seg-btn[data-view="table"]').click();
-  await expect(page.locator('.xls')).toBeVisible();
-  // planilla editable: cargar una fila nueva en lote (ejercita /expenses/bulk)
-  await page.fill('.xls-new [data-f="product"]', 'Aceite QA');
-  await page.fill('.xls-new [data-f="total"]', '1200');
-  await page.click('#save-new');
-  await expect(page.locator('.xls tbody:not(.xls-new) input[value="Aceite QA"]')).toHaveCount(1);
+  await expect(page.locator('.jexcel')).toBeVisible({ timeout: 10000 }); // planilla Excel (Jspreadsheet CE)
   await page.locator('.seg-btn[data-view="cards"]').click();
   // un comercio normal NO debe ver la pestaña ni el botón Admin
   await expect(page.locator('.tab[data-nav="admin"]')).toHaveCount(0);
   await expect(page.locator('.btn-admin')).toHaveCount(0);
   expect(errors, `errores de consola:\n${errors.join('\n')}`).toEqual([]);
+});
+
+test('panel: la planilla Excel guarda al editar una celda', async ({ page }) => {
+  await login(page, 'qa@test.local');
+  await page.locator('.tab[data-nav="gastos"]').click();
+  await page.locator('.seg-btn[data-view="table"]').click();
+  await expect(page.locator('.jexcel')).toBeVisible({ timeout: 10000 });
+  const cell = page.locator('.jexcel td[data-x="2"][data-y="0"]'); // columna Producto, primera fila
+  await cell.dblclick();
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.type('Harina editada QA');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(700); // deja viajar el PATCH
+  await page.reload(); // recarga (queda en #/gastos, vista tabla): debe persistir
+  await expect(page.locator('.jexcel td[data-x="2"][data-y="0"]')).toHaveText('Harina editada QA', { timeout: 10000 });
 });
 
 test('panel: la cuenta root ve la pestaña Admin y abre el panel', async ({ page }) => {

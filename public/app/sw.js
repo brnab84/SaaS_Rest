@@ -1,11 +1,13 @@
 // Service worker network-first: siempre intenta la red (así ves cada deploy al instante)
 // y usa el cache solo como respaldo offline. La versión del cache se bumpea con la app.
-const VERSION = '0.39.0';
+const VERSION = '0.40.0';
 const CACHE = `restaurapp-${VERSION}`;
 const ASSETS = [
   './', './index.html',
   './css/themes.css', './css/app.css',
   './js/app.js', './js/api.js', './js/themes.js', './js/boot.js', './js/ui.js', './js/views.js',
+  './vendor/jsuites.min.js', './vendor/jsuites.min.css',
+  './vendor/jspreadsheet.min.js', './vendor/jspreadsheet.min.css',
   './manifest.webmanifest', './icon.svg',
 ];
 

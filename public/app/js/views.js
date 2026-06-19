@@ -457,7 +457,7 @@ async function renderGenerales(host) {
     <p class="help">Gastos del día a día (no atados a un evento). Cargá manual, por foto (la IA lee la factura), o importá un CSV.</p>
     <div class="seg" style="margin-bottom:10px">
       <button class="seg-btn" data-view="cards">▤ Tarjetas</button>
-      <button class="seg-btn" data-view="table">▦ Tabla</button>
+      <button class="seg-btn" data-view="table">▦ Planilla (Excel)</button>
     </div>
     <div id="genlist"></div>`;
 
@@ -546,12 +546,91 @@ async function renderGenerales(host) {
     } catch (e) { toast(e.message || 'No se pudo guardar', 'error'); }
   }
 
+  // Planilla profesional tipo Excel (Jspreadsheet CE). Edición de celdas, navegación con
+  // teclado, copiar/pegar desde Excel, columnas que se arrastran/redimensionan. Se guarda solo.
+  function mountExcelGrid(box) {
+    box.innerHTML = `
+      <div class="xls-tools">
+        <button class="btn btn-sm" id="grid-add">+ fila</button>
+        <span class="help">Como en Excel: doble clic para escribir, Tab/Enter para moverte, podés <b>copiar y pegar desde Excel</b>. Clic derecho para más opciones. Se guarda solo.</span>
+      </div>
+      <div id="xls-grid"></div>`;
+    const el = box.querySelector('#xls-grid');
+    const vendors = [...new Set(items.map((x) => x.vendor).filter(Boolean))];
+    const catSource = EXP_CATS.map((c) => ({ id: c.value, name: c.label }));
+    const rowOf = (x) => [
+      x._id || '',
+      x.date ? new Date(x.date).toISOString().slice(0, 10) : today,
+      x.items?.[0]?.desc || '',
+      x.vendor || '',
+      x.note || '',
+      (x.total ?? '') === '' ? '' : Number(x.total),
+      x.category || 'supplies',
+    ];
+    const data = sortedItems().map(rowOf);
+    let grid; let syncing = false;
+
+    const saveRowAt = async (y) => {
+      const r = grid.getRowData(y);
+      const id = r[0];
+      const total = Number(r[5]);
+      const product = String(r[2] || '').trim();
+      if (!Number.isFinite(total) || total <= 0) return; // fila incompleta: aún no guardamos
+      const body = {
+        vendor: String(r[3] || '').trim() || undefined,
+        note: String(r[4] || '').trim() || undefined,
+        total,
+        category: EXP_VALID.has(r[6]) ? r[6] : 'supplies',
+        date: r[1] || undefined,
+        items: product ? [{ desc: product, amount: total }] : [],
+      };
+      try {
+        if (id) {
+          const up = await expensesApi.update(id, body);
+          const x = items.find((e) => e._id === id); if (x) Object.assign(x, up);
+        } else {
+          const created = await expensesApi.create(body);
+          items.push(created);
+          syncing = true; grid.setValueFromCoords(0, y, created._id, true); syncing = false;
+        }
+      } catch (e) { toast(e.message || 'No se pudo guardar', 'error'); }
+    };
+
+    grid = window.jspreadsheet(el, {
+      data: data.length ? data : [['', today, '', '', '', '', 'supplies']],
+      tableOverflow: true,
+      tableHeight: '62vh',
+      columnDrag: true,
+      allowInsertColumn: false,
+      allowManualInsertColumn: false,
+      allowDeleteColumn: false,
+      columns: [
+        { type: 'hidden' },
+        { type: 'calendar', title: 'Día', width: 110, options: { format: 'YYYY-MM-DD' } },
+        { type: 'text', title: 'Producto', width: 230 },
+        { type: 'autocomplete', title: 'Proveedor', width: 160, source: vendors },
+        { type: 'text', title: 'Cantidad', width: 100 },
+        { type: 'numeric', title: 'Precio', width: 120 },
+        { type: 'dropdown', title: 'Categoría', width: 150, source: catSource },
+      ],
+      onchange: (instance, cell, colX, rowY) => { if (!syncing) saveRowAt(Number(rowY)); },
+      ondeleterow: async (instance, rowNumber, numOfRows, rowDOM, rowData) => {
+        for (const vals of (rowData || [])) {
+          const id = Array.isArray(vals) ? vals[0] : null;
+          if (id) { try { await expensesApi.remove(id); items = items.filter((e) => e._id !== id); } catch {} }
+        }
+      },
+    });
+    box.querySelector('#grid-add').addEventListener('click', () => grid.insertRow([['', today, '', '', '', '', 'supplies']]));
+  }
+
   function paint() {
     const view = getExpView();
     host.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === view));
     const box = host.querySelector('#genlist');
 
     if (view === 'table') {
+      if (window.jspreadsheet) { mountExcelGrid(box); return; } // planilla Excel real
       if (!newRows.length) addNewRow();
       const arr = (f) => (_expSort.field === f ? (_expSort.dir < 0 ? ' ▾' : ' ▴') : '');
       const list = sortedItems();
