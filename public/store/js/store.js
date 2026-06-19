@@ -5,6 +5,7 @@
   let fmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
   let tenant = null; let products = []; let byId = {}; const cart = {}; let storeOpen = true;
   let trackTimer = null; // timer del seguimiento de pedido (se limpia al salir de esa vista)
+  let _onVis = null;     // listener de "volver a la pestaña" del seguimiento
   let activeCat = null;  // categoría activa en el diseño "fichas/tabs"
   const orderParam = new URLSearchParams(location.search).get('order'); // deep-link a seguimiento
   const waDigits = (p) => String(p || '').replace(/\D/g, '');
@@ -79,7 +80,7 @@
   }
 
   function render() {
-    clearInterval(trackTimer); // por si veníamos del seguimiento
+    stopTracking(); // por si veníamos del seguimiento
     if (!products.length) { app.innerHTML = header() + '<div class="wrap"><div class="center">Todavía no hay productos en la carta.</div></div>'; return; }
     const groups = {};
     for (const p of products) { const c = p.category || 'Menú'; (groups[c] ||= []).push(p); }
@@ -180,7 +181,7 @@
   }
 
   function showOk(o) {
-    clearInterval(trackTimer);
+    stopTracking();
     const b = tenant.branding || {};
     const waBtn = b.phone ? '<button class="btn btn-ghost" id="ok-wa">Seguir por WhatsApp</button>' : '';
     app.innerHTML = `<div class="ok"><div class="check">✓</div><h2>¡Pedido recibido!</h2>
@@ -209,23 +210,42 @@
     window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
   }
 
-  // Seguimiento propio del pedido: muestra los estados y se actualiza solo.
+  // Frena el seguimiento (timer + listener de pestaña) al salir de esa vista.
+  function stopTracking() {
+    clearInterval(trackTimer); trackTimer = null;
+    if (_onVis) { document.removeEventListener('visibilitychange', _onVis); _onVis = null; }
+  }
+
+  // Avisa al cliente (notificación del navegador + vibración) cuando cambia el estado.
+  function notifyStatus(o) {
+    const M = { confirmed: 'Confirmamos tu pedido ✅', preparing: 'Tu pedido está en preparación 👨‍🍳', ready: '¡Tu pedido está listo! 🛍️', on_way: 'Tu pedido va en camino 🛵', delivered: '¡Pedido entregado! 🎉', cancelled: 'Tu pedido fue cancelado' };
+    const msg = M[o.status]; if (!msg) return;
+    try { navigator.vibrate && navigator.vibrate(200); } catch {}
+    try { if ('Notification' in window && Notification.permission === 'granted') new Notification(`${tenant.name} · #${o.code}`, { body: msg, tag: 'ra-track-' + o.id }); } catch {}
+  }
+
+  // Seguimiento propio del pedido: se actualiza forzado (sin caché + al volver a la pestaña).
   async function showTracking(orderId) {
-    clearInterval(trackTimer);
+    stopTracking();
     try { history.replaceState(null, '', `${location.pathname}?order=${orderId}`); } catch { /* sin permiso de history */ }
     app.innerHTML = header() + '<div class="wrap"><div class="center">Cargando tu pedido…</div></div>';
+    let lastStatus = null;
     const tick = async () => {
       let o;
       try {
-        const res = await fetch(`/api/public/${encodeURIComponent(slug)}/orders/${encodeURIComponent(orderId)}`);
+        const res = await fetch(`/api/public/${encodeURIComponent(slug)}/orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
         if (!res.ok) throw new Error();
         o = await res.json();
-      } catch { clearInterval(trackTimer); app.innerHTML = header() + '<div class="wrap"><div class="center">No pudimos encontrar tu pedido.</div></div>'; return; }
+      } catch { stopTracking(); app.innerHTML = header() + '<div class="wrap"><div class="center">No pudimos encontrar tu pedido.</div></div>'; return; }
+      if (lastStatus !== null && o.status !== lastStatus) notifyStatus(o); // cambió de estado
+      lastStatus = o.status;
       renderTracking(o);
-      if (o.status === 'delivered' || o.status === 'cancelled') clearInterval(trackTimer); // estado final
+      if (o.status === 'delivered' || o.status === 'cancelled') stopTracking(); // estado final
     };
     await tick();
-    trackTimer = setInterval(() => { if (document.visibilityState !== 'hidden') tick(); }, 8000);
+    trackTimer = setInterval(() => { if (document.visibilityState !== 'hidden') tick(); }, 6000);
+    _onVis = () => { if (document.visibilityState === 'visible') tick(); }; // al volver a la pestaña, refresca ya
+    document.addEventListener('visibilitychange', _onVis);
   }
 
   function renderTracking(o) {
@@ -247,15 +267,20 @@
     const waBtn = b.phone ? '<button class="btn btn-ghost" id="t-wa">Consultar por WhatsApp</button>' : '';
     const canCancel = o.status === 'new' && tenant.allowCancel !== false; // el comercio puede deshabilitarlo
     const cancelBtn = canCancel ? '<button class="btn btn-ghost" id="t-cancel">Cancelar pedido</button>' : '';
+    const finished = o.status === 'delivered' || o.status === 'cancelled';
+    const notifBtn = (!finished && 'Notification' in window && Notification.permission !== 'granted') ? '<button class="btn btn-ghost" id="t-notif">🔔 Avisarme de los cambios</button>' : '';
     app.innerHTML = header() + `<div class="wrap"><div class="track">
       <div class="track-head"><h2>Seguimiento de tu pedido</h2><div class="code">#${esc(o.code)}</div></div>
       <div class="line total"><span>Total</span><span>${fmt.format(o.total)}</span></div>
       ${progress}
       <div class="steps">${steps}</div>
-      <div class="track-actions">${cancelBtn}${waBtn}<button class="btn btn-primary" id="t-again">Hacer otro pedido</button></div>
+      <div class="track-actions">${notifBtn}${cancelBtn}${waBtn}<button class="btn btn-primary" id="t-again">Hacer otro pedido</button></div>
       <p class="track-hint">Esta página se actualiza sola a medida que avanza tu pedido. Guardá el link para volver a verla.</p>
     </div></div>`;
     document.getElementById('t-again').addEventListener('click', goToMenu);
+    document.getElementById('t-notif')?.addEventListener('click', async () => {
+      try { const p = await Notification.requestPermission(); if (p === 'granted') renderTracking(o); } catch {}
+    });
     if (b.phone) document.getElementById('t-wa').addEventListener('click', () => openWaFollow(o));
     if (canCancel) {
       document.getElementById('t-cancel').addEventListener('click', async (e) => {
