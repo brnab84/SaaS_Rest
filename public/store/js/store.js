@@ -8,6 +8,12 @@
   const orderParam = new URLSearchParams(location.search).get('order'); // deep-link a seguimiento
   const waDigits = (p) => String(p || '').replace(/\D/g, '');
   const fmtTime = (d) => { try { return new Date(d).toLocaleString('es-AR', { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
+  const setFavicon = (url) => {
+    if (!url) return;
+    let link = document.querySelector('link[rel~="icon"]');
+    if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+    link.href = url;
+  };
 
   // Paletas de los 6 temas (igual que el panel) para que la landing use el mismo tema del comercio.
   const THEME_VARS = {
@@ -38,6 +44,7 @@
       if (accent) document.documentElement.style.setProperty('--accent', accent);
       storeOpen = tenant.storeOpen !== false;
       document.title = `${tenant.name} — Pedí online`;
+      if (tenant.branding?.logo) setFavicon(tenant.branding.logo); // favicon = logo del comercio
       if (orderParam) { showTracking(orderParam); return; } // si vienen con ?order=, mostramos el seguimiento
       render();
     } catch { app.innerHTML = '<div class="center">No se pudo cargar el menú. Probá de nuevo.</div>'; }

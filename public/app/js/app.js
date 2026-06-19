@@ -87,12 +87,21 @@ function showUpdateBanner() {
 function syncTenantTheme() {
   if (!isAuthed()) return;
   tenantApi.get().then((t) => {
+    if (t.branding?.logo) setFavicon(t.branding.logo); // favicon = logo del comercio
     if (t.branding?.theme && t.branding.theme !== getTheme()) {
       applyTheme(t.branding.theme);
       const slot = document.getElementById('theme-slot');
       if (slot) renderThemePicker(slot);
     }
   }).catch(() => {});
+}
+
+// Cambia el favicon de la pestaña a la URL dada (el logo del comercio).
+function setFavicon(url) {
+  if (!url) return;
+  let link = document.querySelector('link[rel~="icon"]');
+  if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+  link.href = url;
 }
 
 function start() {
