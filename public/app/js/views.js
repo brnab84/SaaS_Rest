@@ -414,20 +414,29 @@ async function renderGenerales(host) {
     title: x ? 'Editar gasto' : 'Cargar gasto',
     submitLabel: 'Guardar',
     values: x
-      ? { vendor: x.vendor, total: x.total, category: x.category || 'other', date: new Date(x.date).toISOString().slice(0, 10) }
+      ? { product: x.items?.[0]?.desc || '', vendor: x.vendor, total: x.total, note: x.note || '', category: x.category || 'other', date: new Date(x.date).toISOString().slice(0, 10) }
       : { date: new Date().toISOString().slice(0, 10), category: 'supplies' },
     fields: [
-      { name: 'vendor', label: 'Proveedor' },
-      { name: 'total', label: 'Total', type: 'number', step: '0.01', min: 0, required: true },
+      { name: 'date', label: 'Día', type: 'date' },
+      { name: 'product', label: 'Producto', placeholder: 'Ej. Harina 0000' },
+      { name: 'vendor', label: 'Proveedor', placeholder: 'Ej. jumbo, dia, verdulería' },
+      { name: 'total', label: 'Precio', type: 'number', step: '0.01', min: 0, required: true },
+      { name: 'note', label: 'Cantidad', placeholder: 'Ej. 1kg, 4 bandejas' },
       { name: 'category', label: 'Categoría', type: 'select', options: EXP_CATS },
-      { name: 'date', label: 'Fecha', type: 'date' },
     ],
     onSubmit: async (v) => {
+      const body = {
+        vendor: v.vendor || undefined,
+        total: v.total,
+        note: v.note || undefined,
+        category: v.category,
+        date: v.date || undefined,
+        items: v.product ? [{ desc: v.product, amount: v.total }] : undefined,
+      };
       if (x) {
-        const patch = { ...v };
-        if (x.ocrStatus === 'review') patch.ocrStatus = 'done'; // editar confirma el OCR
-        await expensesApi.update(x._id, patch); toast('Gasto actualizado', 'success');
-      } else { await expensesApi.create(v); toast('Gasto cargado', 'success'); }
+        if (x.ocrStatus === 'review') body.ocrStatus = 'done'; // editar confirma el OCR
+        await expensesApi.update(x._id, body); toast('Gasto actualizado', 'success');
+      } else { await expensesApi.create(body); toast('Gasto cargado', 'success'); }
       reload();
     },
   });
@@ -443,15 +452,18 @@ async function renderGenerales(host) {
     </div>
     <p class="help">Gastos del día a día (no atados a un evento). Cargá manual, por foto (la IA lee la factura), o importá un CSV.</p>
     ${!items.length ? '<div class="panel"><div class="empty">Sin gastos cargados.</div></div>'
-    : `<div class="list">${items.map((x) => `
-      <div class="list-item">
+    : `<div class="list">${items.map((x) => {
+      const prod = x.items?.[0]?.desc || x.vendor || 'Gasto';
+      const sub = [x.vendor && x.items?.[0]?.desc ? esc(x.vendor) : '', x.note ? esc(x.note) : '', esc(CAT_ES[x.category] || x.category || 'Otros'), new Date(x.date).toLocaleDateString('es-AR')].filter(Boolean).join(' · ');
+      return `<div class="list-item">
         <div class="li-main">
-          <div class="li-title">${esc(x.vendor || 'Gasto')} ${x.ocrStatus === 'review' ? '<span class="badge badge-warn">Revisar (OCR)</span>' : ''}</div>
-          <div class="li-sub">${esc(CAT_ES[x.category] || x.category || 'Otros')} · ${new Date(x.date).toLocaleDateString('es-AR')}</div>
+          <div class="li-title">${esc(prod)} ${x.ocrStatus === 'review' ? '<span class="badge badge-warn">Revisar (OCR)</span>' : ''}</div>
+          <div class="li-sub">${sub}</div>
         </div>
         <div class="li-amt">${money.format(x.total)}</div>
         <div class="li-actions"><button class="btn btn-sm" data-edit="${x._id}">Editar</button><button class="btn btn-sm btn-danger" data-del="${x._id}">Eliminar</button></div>
-      </div>`).join('')}</div>`}`;
+      </div>`;
+    }).join('')}</div>`}`;
 
   host.querySelector('#add').addEventListener('click', openForm);
   const fileInput = host.querySelector('#ocr-file');
@@ -472,7 +484,17 @@ async function renderGenerales(host) {
     toast(`Importando ${rows.length}…`, 'info');
     let ok = 0;
     for (const r of rows) {
-      try { await expensesApi.create({ vendor: r.vendor || undefined, total: r.total, category: EXP_VALID.has(r.category) ? r.category : undefined, date: r.date || undefined }); ok += 1; } catch {}
+      try {
+        await expensesApi.create({
+          vendor: r.vendor || undefined,
+          note: r.note || undefined,
+          total: r.total,
+          category: EXP_VALID.has(r.category) ? r.category : undefined,
+          date: r.date || undefined,
+          items: r.product ? [{ desc: r.product, amount: r.total }] : undefined,
+        });
+        ok += 1;
+      } catch {}
     }
     toast(`${ok} gastos importados`, 'success'); reload();
   });
@@ -653,9 +675,9 @@ function buildMenuText(tenant, products) {
 // --- CSV de gastos (export/import client-side) ---
 function downloadExpensesCSV(rows) {
   const cell = (s) => { const v = String(s ?? ''); return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
-  const lines = ['fecha,proveedor,categoria,total,moneda'];
+  const lines = ['fecha,producto,proveedor,cantidad,precio,categoria,moneda'];
   for (const x of rows) {
-    lines.push([new Date(x.date).toISOString().slice(0, 10), cell(x.vendor || ''), x.category || 'other', x.total ?? 0, x.currency || 'ARS'].join(','));
+    lines.push([new Date(x.date).toISOString().slice(0, 10), cell(x.items?.[0]?.desc || ''), cell(x.vendor || ''), cell(x.note || ''), x.total ?? 0, x.category || 'other', x.currency || 'ARS'].join(','));
   }
   const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
@@ -699,7 +721,8 @@ function parseExpensesCSV(text) {
   const header = splitCSVLine(lines[0]).map((h) => h.trim().toLowerCase());
   const idx = (names) => header.findIndex((h) => names.includes(h));
   const iDate = idx(['fecha', 'date']); const iVendor = idx(['proveedor', 'vendor']);
-  const iCat = idx(['categoria', 'category', 'categoría']); const iTotal = idx(['total', 'monto', 'importe']);
+  const iProduct = idx(['producto', 'product', 'item', 'detalle']); const iNote = idx(['cantidad', 'cant', 'qty']);
+  const iCat = idx(['categoria', 'category', 'categoría']); const iTotal = idx(['precio', 'total', 'monto', 'importe']);
   const out = [];
   for (let i = 1; i < lines.length; i += 1) {
     const c = splitCSVLine(lines[i]);
@@ -707,7 +730,9 @@ function parseExpensesCSV(text) {
     if (!total) continue;
     out.push({
       date: iDate >= 0 ? (c[iDate] || '').trim() : undefined,
+      product: iProduct >= 0 ? (c[iProduct] || '').trim() : undefined,
       vendor: iVendor >= 0 ? (c[iVendor] || '').trim() : undefined,
+      note: iNote >= 0 ? (c[iNote] || '').trim() : undefined,
       category: iCat >= 0 ? (c[iCat] || '').trim().toLowerCase() : undefined,
       total,
     });

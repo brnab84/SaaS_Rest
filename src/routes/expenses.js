@@ -21,6 +21,7 @@ const CATEGORIES = ['supplies', 'rent', 'salary', 'utilities', 'other'];
 
 const expenseSchema = z.object({
   vendor: z.string().optional(),
+  note: z.string().max(160).optional(), // cantidad/observación
   date: z.coerce.date().optional(),
   total: z.number().nonnegative(),
   currency: z.string().optional(),
