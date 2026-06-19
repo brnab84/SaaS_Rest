@@ -9,6 +9,8 @@ const tenantSchema = new Schema({
     storeOpen: { type: Boolean, default: true }, // ¿la tienda acepta pedidos ahora?
     allowCancel: { type: Boolean, default: true }, // ¿el cliente puede cancelar su pedido (mientras esté "nuevo")?
     whitelabel: { type: Boolean, default: true }, // si el plan lo permite, ¿usar marca propia (ocultar "RestaurApp")?
+    menuLayout: { type: String, enum: ['list', 'tabs'], default: 'list' }, // diseño del menú en la landing
+    itemDetail: { type: Boolean, default: false }, // ¿al tocar un ítem abre su detalle?
     categories: { type: [String], default: undefined }, // categorías del menú (dropdown)
     // Mensajes que se envían al cliente por WhatsApp según el estado del pedido (parametrizables).
     orderMessages: {
@@ -28,6 +30,7 @@ const tenantSchema = new Schema({
     logo: String, cover: String, colors: { type: Map, of: String },
     description: String, theme: String, cuisine: String, // cuisine = rubro (sushi, empanadas, etc.)
     phone: String, // WhatsApp/teléfono de contacto público (para que el cliente siga su pedido)
+    coverPos: { type: Number, default: 50 }, // posición vertical de la portada (0-100%)
   },
 }, { timestamps: true });
 

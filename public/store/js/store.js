@@ -5,6 +5,7 @@
   let fmt = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
   let tenant = null; let products = []; let byId = {}; const cart = {}; let storeOpen = true;
   let trackTimer = null; // timer del seguimiento de pedido (se limpia al salir de esa vista)
+  let activeCat = null;  // categoría activa en el diseño "fichas/tabs"
   const orderParam = new URLSearchParams(location.search).get('order'); // deep-link a seguimiento
   const waDigits = (p) => String(p || '').replace(/\D/g, '');
   const fmtTime = (d) => { try { return new Date(d).toLocaleString('es-AR', { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
@@ -54,7 +55,8 @@
 
   function header() {
     const b = tenant.branding || {};
-    const cover = b.cover ? `<div class="cover" style="background-image:url('${esc(b.cover)}')"></div>` : '<div class="cover"></div>';
+    const pos = Number.isFinite(b.coverPos) ? b.coverPos : 50;
+    const cover = b.cover ? `<div class="cover" style="background-image:url('${esc(b.cover)}');background-position:center ${pos}%"></div>` : '<div class="cover"></div>';
     const logo = b.logo ? `<img class="logo" src="${esc(b.logo)}" alt="${esc(tenant.name)}" />` : '';
     const eyebrow = b.cuisine ? `${esc(b.cuisine)} · Pedí online` : 'Pedí online · Envíos hoy';
     return `${cover}<header class="hero">${logo}<p class="eyebrow">${eyebrow}</p><h1>${esc(tenant.name)}</h1><p>${esc(b.description || 'Hacé tu pedido y te contactamos para coordinar.')}</p></header>`;
@@ -64,7 +66,7 @@
     const stepper = storeOpen
       ? `<div class="stepper">${q > 0 ? `<button class="qbtn" data-dec aria-label="Quitar">−</button><span class="qty">${q}</span>` : ''}<button class="qbtn add" data-inc aria-label="Agregar">+</button></div>`
       : '';
-    return `<div class="prod" data-id="${p._id}">
+    return `<div class="prod${tenant.itemDetail ? ' clickable' : ''}" data-id="${p._id}">
       ${p.photo ? `<img class="pthumb" src="${esc(p.photo)}" alt="" loading="lazy" />` : ''}
       <div class="info"><div class="name">${esc(p.name)}</div>${p.description ? `<div class="desc">${esc(p.description)}</div>` : ''}<div class="price">${fmt.format(p.price)}</div></div>
       ${stepper}
@@ -79,22 +81,65 @@
   function render() {
     clearInterval(trackTimer); // por si veníamos del seguimiento
     if (!products.length) { app.innerHTML = header() + '<div class="wrap"><div class="center">Todavía no hay productos en la carta.</div></div>'; return; }
-    const cats = {};
-    for (const p of products) { const c = p.category || 'Menú'; (cats[c] ||= []).push(p); }
-    const names = Object.keys(cats);
-    const chips = names.length > 1 ? `<nav class="catbar">${names.map((c, i) => `<button class="chip" data-sec="sec-${i}">${esc(c)}</button>`).join('')}</nav>` : '';
-    let html = header() + chips + '<div class="wrap">';
-    if (!storeOpen) html += '<div class="closed">🔴 Cerrado ahora · No se reciben pedidos en este momento.</div>';
-    names.forEach((cat, i) => { html += `<div class="cat" id="sec-${i}">${esc(cat)}</div>`; for (const p of cats[cat]) html += prodHTML(p); });
-    html += '</div>' + cartbarHTML();
+    const groups = {};
+    for (const p of products) { const c = p.category || 'Menú'; (groups[c] ||= []).push(p); }
+    const names = Object.keys(groups);
+    const closed = !storeOpen ? '<div class="closed">🔴 Cerrado ahora · No se reciben pedidos en este momento.</div>' : '';
+    const tabs = tenant.menuLayout === 'tabs' && names.length > 1;
+
+    let html;
+    if (tabs) {
+      if (!activeCat || !groups[activeCat]) activeCat = names[0];
+      html = header()
+        + `<nav class="tabbar">${names.map((c) => `<button class="tab2 ${c === activeCat ? 'on' : ''}" data-tab="${esc(c)}">${esc(c)}</button>`).join('')}</nav>`
+        + `<div class="wrap">${closed}${groups[activeCat].map(prodHTML).join('')}</div>`;
+    } else {
+      const chips = names.length > 1 ? `<nav class="catbar">${names.map((c, i) => `<button class="chip" data-sec="sec-${i}">${esc(c)}</button>`).join('')}</nav>` : '';
+      let body = '';
+      names.forEach((cat, i) => { body += `<div class="cat" id="sec-${i}">${esc(cat)}</div>`; for (const p of groups[cat]) body += prodHTML(p); });
+      html = header() + chips + `<div class="wrap">${closed}${body}</div>`;
+    }
+    html += cartbarHTML();
     app.innerHTML = html;
+
     app.querySelectorAll('.prod').forEach((el) => {
       const id = el.dataset.id;
-      el.querySelector('[data-inc]')?.addEventListener('click', () => { cart[id] = (cart[id] || 0) + 1; render(); });
-      el.querySelector('[data-dec]')?.addEventListener('click', () => { cart[id] = Math.max(0, (cart[id] || 0) - 1); if (!cart[id]) delete cart[id]; render(); });
+      el.querySelector('[data-inc]')?.addEventListener('click', (e) => { e.stopPropagation(); cart[id] = (cart[id] || 0) + 1; render(); });
+      el.querySelector('[data-dec]')?.addEventListener('click', (e) => { e.stopPropagation(); cart[id] = Math.max(0, (cart[id] || 0) - 1); if (!cart[id]) delete cart[id]; render(); });
+      if (tenant.itemDetail) el.addEventListener('click', () => openItemDetail(byId[id]));
     });
     app.querySelectorAll('.catbar .chip').forEach((b) => b.addEventListener('click', () => document.getElementById(b.dataset.sec)?.scrollIntoView({ behavior: 'smooth', block: 'start' })));
+    app.querySelectorAll('.tabbar .tab2').forEach((b) => b.addEventListener('click', () => { activeCat = b.dataset.tab; render(); }));
     document.getElementById('cartbar')?.addEventListener('click', openCheckout);
+  }
+
+  // Detalle de un ítem (sin perder el carrito): foto, descripción, precio y stepper.
+  function openItemDetail(p) {
+    if (!p) return;
+    const ov = document.createElement('div'); ov.className = 'sheet-ov show';
+    const drawStep = () => {
+      const box = ov.querySelector('.detail-step');
+      const q = cart[p._id] || 0;
+      if (!storeOpen) { box.innerHTML = '<div class="muted">Cerrado ahora · no se reciben pedidos.</div>'; return; }
+      box.innerHTML = q > 0
+        ? `<div class="stepper"><button class="qbtn" data-dec aria-label="Quitar">−</button><span class="qty">${q}</span><button class="qbtn add" data-inc aria-label="Agregar">+</button></div>`
+        : '<button class="btn btn-primary" data-inc style="margin-top:0">Agregar al pedido</button>';
+      box.querySelector('[data-inc]')?.addEventListener('click', () => { cart[p._id] = (cart[p._id] || 0) + 1; drawStep(); });
+      box.querySelector('[data-dec]')?.addEventListener('click', () => { cart[p._id] = Math.max(0, (cart[p._id] || 0) - 1); if (!cart[p._id]) delete cart[p._id]; drawStep(); });
+    };
+    ov.innerHTML = `<div class="sheet detail">
+      ${p.photo ? `<img class="detail-img" src="${esc(p.photo)}" alt="" />` : ''}
+      <h2>${esc(p.name)}</h2>
+      ${p.description ? `<p class="detail-desc">${esc(p.description)}</p>` : ''}
+      <div class="detail-price">${fmt.format(p.price)}</div>
+      <div class="detail-step"></div>
+      <button class="btn btn-ghost" id="d-close">Seguir viendo</button>
+    </div>`;
+    document.body.appendChild(ov);
+    const close = () => { ov.remove(); render(); }; // al cerrar, refresca el menú con el carrito actual
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    ov.querySelector('#d-close').addEventListener('click', close);
+    drawStep();
   }
 
   function openCheckout() {

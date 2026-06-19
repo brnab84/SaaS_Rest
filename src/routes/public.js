@@ -36,6 +36,8 @@ router.get('/:slug/menu', resolveTenant, async (req, res, next) => {
         storeOpen: req.tenant.settings?.storeOpen !== false,
         allowCancel: req.tenant.settings?.allowCancel !== false,
         whitelabel: getPlan(req.tenant.plan).features?.whitelabel === true && req.tenant.settings?.whitelabel !== false, // ¿oculta marca RestaurApp?
+        menuLayout: req.tenant.settings?.menuLayout || 'list',
+        itemDetail: req.tenant.settings?.itemDetail === true,
         branding: req.tenant.branding || {},
       },
       products,

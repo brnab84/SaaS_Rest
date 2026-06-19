@@ -23,7 +23,7 @@ function publicView(doc) {
     name: t.name,
     slug: t.slug,
     plan: t.plan,
-    settings: { currency: s.currency, storeOpen: s.storeOpen !== false, allowCancel: s.allowCancel !== false, whitelabel: s.whitelabel !== false, categories: s.categories || [], orderMessages: s.orderMessages || {} },
+    settings: { currency: s.currency, storeOpen: s.storeOpen !== false, allowCancel: s.allowCancel !== false, whitelabel: s.whitelabel !== false, menuLayout: s.menuLayout || 'list', itemDetail: s.itemDetail === true, categories: s.categories || [], orderMessages: s.orderMessages || {} },
     whitelabelAllowed: getPlan(t.plan).features?.whitelabel === true, // ¿el plan permite marca propia?
     branding: t.branding || {},
     integrations: {
@@ -102,6 +102,8 @@ const patchSchema = z.object({
     storeOpen: z.boolean().optional(),
     allowCancel: z.boolean().optional(),
     whitelabel: z.boolean().optional(),
+    menuLayout: z.enum(['list', 'tabs']).optional(),
+    itemDetail: z.boolean().optional(),
     categories: z.array(z.string().min(1).max(40)).max(40).optional(),
     orderMessages: z.object({
       confirmed: z.string().max(300).optional(),
@@ -119,6 +121,7 @@ const patchSchema = z.object({
     theme: z.string().max(24).optional(),
     cuisine: z.string().max(40).optional(),
     phone: z.string().max(40).optional(),
+    coverPos: z.number().min(0).max(100).optional(),
   }).optional(),
   integrations: z.object({
     whatsapp: z.object({ phoneId: str, wabaId: str, token: str }).optional(),
@@ -145,6 +148,8 @@ router.patch('/', requireRole('owner', 'admin'), validate(patchSchema), async (r
     if (b.settings?.storeOpen !== undefined) $set['settings.storeOpen'] = b.settings.storeOpen;
     if (b.settings?.allowCancel !== undefined) $set['settings.allowCancel'] = b.settings.allowCancel;
     if (b.settings?.whitelabel !== undefined) $set['settings.whitelabel'] = b.settings.whitelabel;
+    if (b.settings?.menuLayout !== undefined) $set['settings.menuLayout'] = b.settings.menuLayout;
+    if (b.settings?.itemDetail !== undefined) $set['settings.itemDetail'] = b.settings.itemDetail;
     if (b.settings?.categories !== undefined) $set['settings.categories'] = b.settings.categories;
     if (b.settings?.orderMessages) {
       for (const [k, v] of Object.entries(b.settings.orderMessages)) {
@@ -160,6 +165,7 @@ router.patch('/', requireRole('owner', 'admin'), validate(patchSchema), async (r
     if (br.theme !== undefined) $set['branding.theme'] = br.theme;
     if (br.cuisine !== undefined) $set['branding.cuisine'] = br.cuisine;
     if (br.phone !== undefined) $set['branding.phone'] = br.phone;
+    if (br.coverPos !== undefined) $set['branding.coverPos'] = br.coverPos;
 
     const ig = b.integrations || {};
     if (ig.whatsapp) {

@@ -550,6 +550,9 @@ export async function renderAjustes(host) {
   const om = tenant.settings?.orderMessages || {};
   const wlAllowed = tenant.whitelabelAllowed === true; // ¿el plan habilita marca blanca?
   const wlOn = tenant.settings?.whitelabel !== false;
+  const coverPos = Number.isFinite(tenant.branding?.coverPos) ? tenant.branding.coverPos : 50;
+  const menuLayout = tenant.settings?.menuLayout || 'list';
+  const itemDetail = tenant.settings?.itemDetail === true;
   // Plan y uso (Infinity llega como null = sin límite)
   const planId = usage?.plan || tenant.plan || 'free';
   const plans = usage?.plans || {};
@@ -632,6 +635,21 @@ export async function renderAjustes(host) {
       <p class="muted" style="margin:0 0 12px">Personalizá lo que recibe el cliente por WhatsApp en cada estado del pedido. Si lo dejás vacío, se usa el texto por defecto. Requiere WhatsApp Business conectado.</p>
       ${Object.entries(MSG_LABELS).map(([k, label]) => `<div class="kv"><span>${label}</span><span class="muted" style="text-align:right;max-width:62%">${esc(om[k] || DEFAULT_MSG[k])}</span></div>`).join('')}
       <button class="btn btn-sm" id="edit-msgs" style="margin-top:12px">Editar mensajes</button>
+    </div>
+    <div class="panel">
+      <h2>Diseño de la landing</h2>
+      ${coverUrl ? `
+      <p class="muted" style="margin:0 0 8px">Encuadre de la portada: arrastrá para elegir qué parte se ve. La previsualización es aproximada a tu landing.</p>
+      <div id="cover-prev2" class="cover-adjust" style="background-image:url('${esc(coverUrl)}');background-position:center ${coverPos}%"></div>
+      <input type="range" id="cover-pos" min="0" max="100" value="${coverPos}" style="width:100%;margin-top:10px" />`
+    : '<p class="muted" style="margin:0 0 8px">Subí una portada en "Logo y portada" para poder ajustar su encuadre.</p>'}
+      <div class="field" style="margin-top:14px"><label>Diseño del menú</label>
+        <select class="input" id="menu-layout">
+          <option value="list" ${menuLayout === 'list' ? 'selected' : ''}>Lista (todo junto, con accesos por categoría)</option>
+          <option value="tabs" ${menuLayout === 'tabs' ? 'selected' : ''}>Fichas por categoría (una a la vez)</option>
+        </select>
+      </div>
+      <label class="field-check" style="margin-top:10px"><input type="checkbox" id="item-detail" ${itemDetail ? 'checked' : ''}/> Al tocar un ítem, abrir su detalle (sin perder el carrito)</label>
     </div>
     <div class="panel">
       <h2>Tu landing pública</h2>
@@ -763,6 +781,23 @@ export async function renderAjustes(host) {
 
   host.querySelector('#wl-toggle')?.addEventListener('change', async (e) => {
     try { await tenantApi.update({ settings: { whitelabel: e.target.checked } }); toast('Marca actualizada · recargá para verla en el topbar', 'success'); }
+    catch (ex) { toast(ex.message || 'No se pudo guardar', 'error'); e.target.checked = !e.target.checked; }
+  });
+
+  // Diseño de la landing
+  const coverRange = host.querySelector('#cover-pos');
+  const coverPrev = host.querySelector('#cover-prev2');
+  coverRange?.addEventListener('input', () => { if (coverPrev) coverPrev.style.backgroundPosition = `center ${coverRange.value}%`; });
+  coverRange?.addEventListener('change', async () => {
+    try { await tenantApi.update({ branding: { coverPos: Number(coverRange.value) } }); toast('Encuadre de portada guardado', 'success'); }
+    catch (ex) { toast(ex.message || 'No se pudo guardar', 'error'); }
+  });
+  host.querySelector('#menu-layout')?.addEventListener('change', async (e) => {
+    try { await tenantApi.update({ settings: { menuLayout: e.target.value } }); toast('Diseño del menú actualizado', 'success'); }
+    catch (ex) { toast(ex.message || 'No se pudo guardar', 'error'); }
+  });
+  host.querySelector('#item-detail')?.addEventListener('change', async (e) => {
+    try { await tenantApi.update({ settings: { itemDetail: e.target.checked } }); toast(e.target.checked ? 'Detalle de ítem activado' : 'Detalle de ítem desactivado', 'success'); }
     catch (ex) { toast(ex.message || 'No se pudo guardar', 'error'); e.target.checked = !e.target.checked; }
   });
 
