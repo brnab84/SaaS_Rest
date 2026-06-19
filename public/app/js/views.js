@@ -651,6 +651,10 @@ export async function renderAjustes(host) {
           <option value="thermal" ${cmd.method === 'thermal' ? 'selected' : ''}>Térmica directa USB, sin diálogo (Chrome/Edge de escritorio)</option>
         </select>
       </div>
+      <div class="hint" style="margin-top:6px;line-height:1.6">
+        <strong>Impresora del sistema</strong> — cualquier impresora instalada en el equipo (térmica o común). Térmicas probadas: Epson TM-T20III / TM-m30, Star TSP143 / TSP654, Bixolon SRP-350, Xprinter XP-80 / XP-58, 3nstar RPT-008, Posiflex. También sirve una inkjet/láser normal y AirPrint en iPad.<br>
+        <strong>Térmica directa USB</strong> — impresoras que se ven como <em>puerto serie/COM</em> (USB-serial). Suelen ser las económicas 58/80mm con chip CH340: POS-58, Goojprt PT-210, Xprinter XP-58 (modelos serie), 3nstar, o cualquiera con interfaz serial real. <em>Truco:</em> si al tocar "Conectar impresora" aparece un puerto, te sirve. Las que son solo "USB printer class" (varias Epson/Star USB) no aparecen como COM → en esas usá el método del sistema.
+      </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         <div class="field" style="flex:1;min-width:120px"><label>Ancho</label>
           <select class="input" id="cmd-width"><option value="80" ${cmd.width === '80' ? 'selected' : ''}>80 mm</option><option value="58" ${cmd.width === '58' ? 'selected' : ''}>58 mm</option></select>
