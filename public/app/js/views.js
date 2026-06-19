@@ -413,14 +413,16 @@ export async function renderGastos(host) {
 
 async function renderGenerales(host) {
   host.innerHTML = '<div class="spinner">Cargando…</div>';
-  let items; let sheets = [];
+  let items; let sheets = []; let tenant = {};
   const active = getExpSheet(); // hoja/pestaña activa ('general' o un id)
   try {
-    [items, sheets] = await Promise.all([
+    [items, sheets, tenant] = await Promise.all([
       expensesApi.list(`?sheet=${active}`),
       expenseSheetsApi.list(),
+      tenantApi.get(),
     ]);
   } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  const columns = tenant?.settings?.expenseColumns || []; // columnas propias [{key,label,type}]
   // si la hoja activa se borró en otro lado, volver a General
   if (active !== 'general' && !sheets.some((s) => s._id === active)) { setExpSheet('general'); renderGenerales(host); return; }
   const reload = () => renderGenerales(host);
@@ -593,18 +595,23 @@ async function renderGenerales(host) {
     } catch (e) { toast(e.message || 'No se pudo guardar', 'error'); }
   }
 
-  // Planilla profesional tipo Excel (Jspreadsheet CE). Edición de celdas, navegación con
-  // teclado, copiar/pegar desde Excel, columnas que se arrastran/redimensionan. Se guarda solo.
+  const slugCol = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+
+  // Planilla profesional tipo Excel (Jspreadsheet CE). Edición de celdas, navegación con teclado,
+  // copiar/pegar desde Excel, columnas que se arrastran/redimensionan, + columnas propias. Se guarda solo.
   function mountExcelGrid(box) {
     box.innerHTML = `
       <div class="xls-tools">
         <button class="btn btn-sm" id="grid-add">+ fila</button>
-        <span class="help">Como en Excel: doble clic para escribir, Tab/Enter para moverte, podés <b>copiar y pegar desde Excel</b>. Clic derecho para más opciones. Se guarda solo.</span>
+        <button class="btn btn-sm" id="col-add">＋ columna</button>
+        ${columns.map((c) => `<span class="col-chip">${esc(c.label)}<span class="col-x" data-delcol="${c.key}" title="Eliminar columna">✕</span></span>`).join('')}
+        <span class="help">Como en Excel: doble clic para escribir, Tab/Enter para moverte, <b>copiar y pegar desde Excel</b>. Se guarda solo.</span>
       </div>
       <div id="xls-grid"></div>`;
     const el = box.querySelector('#xls-grid');
     const vendors = [...new Set(items.map((x) => x.vendor).filter(Boolean))];
     const catSource = EXP_CATS.map((c) => ({ id: c.value, name: c.label }));
+    const blankRow = () => ['', today, '', '', '', '', 'supplies', ...columns.map(() => '')];
     const rowOf = (x) => [
       x._id || '',
       x.date ? new Date(x.date).toISOString().slice(0, 10) : today,
@@ -613,6 +620,7 @@ async function renderGenerales(host) {
       x.note || '',
       (x.total ?? '') === '' ? '' : Number(x.total),
       x.category || 'supplies',
+      ...columns.map((c) => (x.custom?.[c.key] ?? '')),
     ];
     const data = sortedItems().map(rowOf);
     let grid; let syncing = false;
@@ -631,6 +639,11 @@ async function renderGenerales(host) {
         date: r[1] || undefined,
         items: product ? [{ desc: product, amount: total }] : [],
       };
+      if (columns.length) { // columnas propias → body.custom
+        const custom = {};
+        columns.forEach((c, i) => { const v = r[7 + i]; if (v !== '' && v != null) custom[c.key] = v; });
+        body.custom = custom;
+      }
       try {
         if (id) {
           const up = await expensesApi.update(id, body);
@@ -644,7 +657,7 @@ async function renderGenerales(host) {
     };
 
     grid = window.jspreadsheet(el, {
-      data: data.length ? data : [['', today, '', '', '', '', 'supplies']],
+      data: data.length ? data : [blankRow()],
       tableOverflow: true,
       tableHeight: '62vh',
       columnDrag: true,
@@ -659,6 +672,7 @@ async function renderGenerales(host) {
         { type: 'text', title: 'Cantidad', width: 100 },
         { type: 'numeric', title: 'Precio', width: 120 },
         { type: 'dropdown', title: 'Categoría', width: 150, source: catSource },
+        ...columns.map((c) => ({ type: 'text', title: c.label, width: 150 })),
       ],
       onchange: (instance, cell, colX, rowY) => { if (!syncing) saveRowAt(Number(rowY)); },
       ondeleterow: async (instance, rowNumber, numOfRows, rowDOM, rowData) => {
@@ -668,7 +682,21 @@ async function renderGenerales(host) {
         }
       },
     });
-    box.querySelector('#grid-add').addEventListener('click', () => grid.insertRow([['', today, '', '', '', '', 'supplies']]));
+    box.querySelector('#grid-add').addEventListener('click', () => grid.insertRow([blankRow()]));
+    box.querySelector('#col-add').addEventListener('click', async () => {
+      const label = window.prompt('Nombre de la columna (ej. N° factura, Forma de pago):');
+      if (!label || !label.trim()) return;
+      const key = slugCol(label) || `col_${Date.now()}`;
+      if (columns.some((c) => c.key === key)) { toast('Ya existe una columna así', 'error'); return; }
+      await tenantApi.update({ settings: { expenseColumns: [...columns, { key, label: label.trim(), type: 'text' }] } });
+      toast('Columna agregada', 'success'); reload();
+    });
+    box.querySelectorAll('[data-delcol]').forEach((b) => b.addEventListener('click', async () => {
+      if (await confirmDialog('¿Eliminar esta columna? Los datos ya cargados quedan guardados.')) {
+        await tenantApi.update({ settings: { expenseColumns: columns.filter((c) => c.key !== b.dataset.delcol) } });
+        toast('Columna eliminada', 'success'); reload();
+      }
+    }));
   }
 
   function paint() {

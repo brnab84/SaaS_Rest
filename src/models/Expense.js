@@ -11,6 +11,7 @@ const expenseSchema = new Schema({
   currency: { type: String, default: 'ARS' },
   category: { type: String, enum: ['supplies', 'rent', 'salary', 'utilities', 'other'], default: 'other' },
   items: [{ desc: String, qty: Number, amount: Number, _id: false }],
+  custom: { type: Schema.Types.Mixed }, // valores de columnas propias { clave: valor } (aditivo)
   photoUrl: String,
   ocrRaw: String,
   ocrStatus: { type: String, enum: ['pending', 'done', 'review'], default: 'pending' },

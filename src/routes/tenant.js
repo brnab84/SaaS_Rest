@@ -23,7 +23,7 @@ function publicView(doc) {
     name: t.name,
     slug: t.slug,
     plan: t.plan,
-    settings: { currency: s.currency, storeOpen: s.storeOpen !== false, allowCancel: s.allowCancel !== false, whitelabel: s.whitelabel !== false, menuLayout: s.menuLayout || 'list', itemDetail: s.itemDetail === true, categories: s.categories || [], orderMessages: s.orderMessages || {} },
+    settings: { currency: s.currency, storeOpen: s.storeOpen !== false, allowCancel: s.allowCancel !== false, whitelabel: s.whitelabel !== false, menuLayout: s.menuLayout || 'list', itemDetail: s.itemDetail === true, categories: s.categories || [], expenseColumns: s.expenseColumns || [], orderMessages: s.orderMessages || {} },
     whitelabelAllowed: getPlan(t.plan).features?.whitelabel === true, // ¿el plan permite marca propia?
     branding: t.branding || {},
     integrations: {
@@ -105,6 +105,11 @@ const patchSchema = z.object({
     menuLayout: z.enum(['list', 'tabs']).optional(),
     itemDetail: z.boolean().optional(),
     categories: z.array(z.string().min(1).max(40)).max(40).optional(),
+    expenseColumns: z.array(z.object({
+      key: z.string().min(1).max(40),
+      label: z.string().min(1).max(40),
+      type: z.string().max(20).optional(),
+    })).max(20).optional(),
     orderMessages: z.object({
       confirmed: z.string().max(300).optional(),
       preparing: z.string().max(300).optional(),
@@ -151,6 +156,7 @@ router.patch('/', requireRole('owner', 'admin'), validate(patchSchema), async (r
     if (b.settings?.menuLayout !== undefined) $set['settings.menuLayout'] = b.settings.menuLayout;
     if (b.settings?.itemDetail !== undefined) $set['settings.itemDetail'] = b.settings.itemDetail;
     if (b.settings?.categories !== undefined) $set['settings.categories'] = b.settings.categories;
+    if (b.settings?.expenseColumns !== undefined) $set['settings.expenseColumns'] = b.settings.expenseColumns;
     if (b.settings?.orderMessages) {
       for (const [k, v] of Object.entries(b.settings.orderMessages)) {
         if (v !== undefined) $set[`settings.orderMessages.${k}`] = v;

@@ -12,6 +12,9 @@ const tenantSchema = new Schema({
     menuLayout: { type: String, enum: ['list', 'tabs'], default: 'list' }, // diseño del menú en la landing
     itemDetail: { type: Boolean, default: false }, // ¿al tocar un ítem abre su detalle?
     categories: { type: [String], default: undefined }, // categorías del menú (dropdown)
+    // Columnas propias para la planilla de gastos (ej. N° factura, forma de pago). Aditivo:
+    // si está vacío, la planilla se ve como siempre. Los valores van en Expense.custom.
+    expenseColumns: { type: [{ key: String, label: String, type: { type: String, default: 'text' }, _id: false }], default: undefined },
     // Mensajes que se envían al cliente por WhatsApp según el estado del pedido (parametrizables).
     orderMessages: {
       confirmed: String, preparing: String, ready: String, on_way: String, delivered: String,

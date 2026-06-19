@@ -26,6 +26,7 @@ const expenseSchema = z.object({
   note: z.string().max(160).optional(), // cantidad/observación
   date: z.coerce.date().optional(),
   sheetId: sheetField,
+  custom: z.record(z.union([z.string().max(300), z.number(), z.null()])).optional(), // valores de columnas propias
   total: z.number().nonnegative(),
   currency: z.string().optional(),
   category: z.enum(CATEGORIES).optional(),

@@ -171,6 +171,18 @@ test('gastos: hojas (pestañas) agrupan y al borrar vuelven a General', async ()
   assert.ok(generalAfter.some((g) => g.items?.[0]?.desc === 'Sal gruesa'), 'al borrar la hoja, el gasto vuelve a General');
 });
 
+test('gastos: columnas propias se guardan en el gasto (custom)', async () => {
+  const pc = await api('/api/tenant', { method: 'PATCH', token: state.token, body: { settings: { expenseColumns: [{ key: 'n_factura', label: 'N° factura', type: 'text' }] } } });
+  assert.equal(pc.status, 200);
+  const cfg = await (await api('/api/tenant', { token: state.token })).json();
+  assert.ok((cfg.settings.expenseColumns || []).some((c) => c.key === 'n_factura'), 'la columna queda en settings');
+  const e = await api('/api/expenses', { method: 'POST', token: state.token, body: { total: 700, custom: { n_factura: 'A-0012' }, items: [{ desc: 'Café', amount: 700 }] } });
+  assert.equal(e.status, 201);
+  const id = (await e.json())._id;
+  const got = await (await api(`/api/expenses/${id}`, { token: state.token })).json();
+  assert.equal(got.custom?.n_factura, 'A-0012', 'el valor de la columna propia persiste');
+});
+
 test('chat comercio ↔ root', async () => {
   const s = await api('/api/messages', { method: 'POST', token: state.token, body: { text: 'Hola soporte' } });
   assert.equal(s.status, 201);

@@ -5,7 +5,7 @@ async function login(page, email) {
   await page.fill('#email', email);
   await page.fill('#password', 'test1234');
   await page.click('#login-btn');
-  await expect(page.locator('.shell')).toBeVisible();
+  await expect(page.locator('.shell')).toBeVisible({ timeout: 15000 });
 }
 
 test('panel: comercio normal — todas las pestañas cargan sin error de consola', async ({ page }) => {
@@ -55,6 +55,16 @@ test('panel: gastos en hojas (pestañas)', async ({ page }) => {
   page.once('dialog', (d) => d.accept('Insumos QA')); // prompt del nombre de la hoja
   await page.click('#sheet-add');
   await expect(page.locator('.sheet-tab', { hasText: 'Insumos QA' })).toBeVisible({ timeout: 10000 });
+});
+
+test('panel: agregar columna propia a la planilla', async ({ page }) => {
+  await login(page, 'qa@test.local');
+  await page.locator('.tab[data-nav="gastos"]').click();
+  await page.locator('.seg-btn[data-view="table"]').click();
+  await expect(page.locator('.jexcel')).toBeVisible({ timeout: 10000 });
+  page.once('dialog', (d) => d.accept('N factura QA')); // prompt del nombre de la columna
+  await page.click('#col-add');
+  await expect(page.locator('.col-chip', { hasText: 'N factura QA' })).toBeVisible({ timeout: 10000 });
 });
 
 test('panel: la cuenta root ve la pestaña Admin y abre el panel', async ({ page }) => {

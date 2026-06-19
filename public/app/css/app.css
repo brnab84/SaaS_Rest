@@ -178,7 +178,10 @@ button { font-family: var(--font); cursor: pointer; }
 .sheet-add { padding: 7px 10px; border: 1px dashed var(--border-color); background: transparent; color: var(--accent); border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px; }
 .sheet-add:hover { border-color: var(--accent); }
 /* Planilla Excel (Jspreadsheet CE) adaptada al tema de la app */
-.xls-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.xls-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.col-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 12px; }
+.col-chip .col-x { cursor: pointer; opacity: .6; }
+.col-chip .col-x:hover { opacity: 1; color: var(--danger, #e5484d); }
 .xls-tools .help { flex: 1; min-width: 160px; margin: 0; }
 .jexcel_container { font-family: inherit; color: var(--text); max-width: 100%; }
 .jexcel_content { overflow: auto; max-width: 100%; }
