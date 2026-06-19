@@ -264,6 +264,47 @@ export async function extractProductFromPhoto({ imageBase64, mediaType, categori
   return parseJson(res);
 }
 
+// --- Extraer una lista de compras/gastos desde una foto (para eventos) ---------
+const expenseListSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          name: { type: 'string', description: 'Producto/insumo' },
+          vendor: { type: 'string', description: 'Proveedor o comercio, si figura' },
+          amount: { type: 'number', description: 'Monto/precio numérico, sin símbolo' },
+          note: { type: 'string', description: 'Cantidad u observación (ej. "0,8kg", "4 bandejas")' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  required: ['items'],
+};
+
+// imageBase64: foto de una planilla/lista de compras de un evento.
+export async function extractExpenseList({ imageBase64, mediaType }) {
+  const res = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 4096,
+    thinking: { type: 'adaptive' },
+    output_config: { format: { type: 'json_schema', schema: expenseListSchema }, effort: 'low' },
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+        { type: 'text', text: 'Esta es la foto de una lista de compras/gastos de un evento gastronómico. Extraé TODAS las filas: producto, proveedor (si aparece), monto (número sin símbolo) y la cantidad/observación. Omití encabezados y totales.' },
+      ],
+    }],
+  });
+  return parseJson(res);
+}
+
 // El SDK puebla parsed_output cuando se usa output_config.format; con fallback a parsear el texto.
 function parseJson(res) {
   if (res.parsed_output) return res.parsed_output;

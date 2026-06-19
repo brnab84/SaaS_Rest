@@ -110,6 +110,27 @@ export const expensesApi = {
   remove: (id) => request(`/expenses/${id}`, { method: 'DELETE' }),
 };
 
+export const eventsApi = {
+  list: () => request('/events'),
+  create: (b) => request('/events', { method: 'POST', body: b }),
+  get: (id) => request(`/events/${id}`),
+  update: (id, b) => request(`/events/${id}`, { method: 'PATCH', body: b }),
+  remove: (id) => request(`/events/${id}`, { method: 'DELETE' }),
+  addItems: (id, items) => request(`/events/${id}/items`, { method: 'POST', body: { items } }),
+};
+
+// Foto de la lista de gastos de un evento → la IA extrae las filas (para revisar).
+export async function eventItemsFromPhoto(id, file) {
+  const token = getToken();
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch(`/api/events/${id}/items/photo`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: fd });
+  if (res.status === 401) { logout(); throw new ApiError('Sesión expirada', 401); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(data?.error?.message || 'No se pudo leer la foto', res.status);
+  return data;
+}
+
 export const campaignsApi = {
   list: () => request('/campaigns'),
   create: (b) => request('/campaigns', { method: 'POST', body: b }),

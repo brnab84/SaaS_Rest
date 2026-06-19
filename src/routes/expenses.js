@@ -38,7 +38,7 @@ const expensePatchSchema = expenseSchema.partial();
 // Listar gastos del tenant (filtros por categoría y rango de fechas)
 router.get('/', async (req, res, next) => {
   try {
-    const filter = { tenantId: req.auth.tenantId };
+    const filter = { tenantId: req.auth.tenantId, eventId: null }; // "Generales": sin evento
     if (req.query.category) filter.category = req.query.category;
     if (req.query.from || req.query.to) {
       filter.date = {};

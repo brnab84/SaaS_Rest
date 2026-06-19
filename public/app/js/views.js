@@ -389,11 +389,26 @@ function startOrderStream(host) {
 }
 
 /* ===================== GASTOS ===================== */
+let _gtab = 'generales'; // solapa activa: generales | eventos
 export async function renderGastos(host) {
-  loading(host);
+  host.innerHTML = `
+    <div class="view-head"><h1>Gastos</h1>
+      <div class="seg">
+        <button class="seg-btn ${_gtab === 'generales' ? 'on' : ''}" data-gt="generales">Generales</button>
+        <button class="seg-btn ${_gtab === 'eventos' ? 'on' : ''}" data-gt="eventos">Por evento</button>
+      </div>
+    </div>
+    <div id="gbody"></div>`;
+  host.querySelectorAll('[data-gt]').forEach((b) => b.addEventListener('click', () => { _gtab = b.dataset.gt; renderGastos(host); }));
+  const body = host.querySelector('#gbody');
+  if (_gtab === 'eventos') renderEventos(body); else renderGenerales(body);
+}
+
+async function renderGenerales(host) {
+  host.innerHTML = '<div class="spinner">Cargando…</div>';
   let items;
   try { items = await expensesApi.list(); } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
-  const reload = () => renderGastos(host);
+  const reload = () => renderGenerales(host);
 
   const openForm = (x) => formModal({
     title: x ? 'Editar gasto' : 'Cargar gasto',
@@ -418,19 +433,16 @@ export async function renderGastos(host) {
   });
 
   host.innerHTML = `
-    <div class="view-head">
-      <h1>Gastos</h1>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn" id="export">Descargar CSV</button>
-        <button class="btn" id="import">Importar CSV</button>
-        <button class="btn" id="ocr">📷 Cargar por foto</button>
-        <button class="btn btn-accent" id="add">+ Cargar gasto</button>
-        <input type="file" accept="image/*" id="ocr-file" hidden />
-        <input type="file" accept=".csv,text/csv" id="csv-file" hidden />
-      </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <button class="btn" id="export">Descargar CSV</button>
+      <button class="btn" id="import">Importar CSV</button>
+      <button class="btn" id="ocr">📷 Cargar por foto</button>
+      <button class="btn btn-accent" id="add">+ Cargar gasto</button>
+      <input type="file" accept="image/*" id="ocr-file" hidden />
+      <input type="file" accept=".csv,text/csv" id="csv-file" hidden />
     </div>
-    <p class="help">Registrá tus gastos de 4 formas: <strong>+ Cargar gasto</strong> (manual), <strong>📷 Cargar por foto</strong> (la IA lee la factura), <strong>Importar CSV</strong> (varios de una; en Excel usá "Guardar como CSV" con columnas fecha, proveedor, categoria, total) y <strong>Descargar CSV</strong> para llevarte todo.</p>
-    ${!items.length ? '<div class="panel"><div class="empty">Sin gastos cargados. Cargá uno manual o sacale una foto a la factura.</div></div>'
+    <p class="help">Gastos del día a día (no atados a un evento). Cargá manual, por foto (la IA lee la factura), o importá un CSV.</p>
+    ${!items.length ? '<div class="panel"><div class="empty">Sin gastos cargados.</div></div>'
     : `<div class="list">${items.map((x) => `
       <div class="list-item">
         <div class="li-main">
@@ -467,6 +479,161 @@ export async function renderGastos(host) {
   host.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(items.find((x) => x._id === b.dataset.edit))));
   host.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
     if (await confirmDialog('¿Eliminar este gasto?')) { await expensesApi.remove(b.dataset.del); toast('Gasto eliminado', 'success'); reload(); }
+  }));
+}
+
+/* ---------- Gastos por evento ---------- */
+function openEventForm(ev, reload) {
+  formModal({
+    title: ev ? 'Editar evento' : 'Nuevo evento',
+    submitLabel: 'Guardar',
+    values: ev ? { name: ev.name, date: new Date(ev.date).toISOString().slice(0, 10), pax: ev.pax, revenue: ev.revenue, description: ev.description } : { date: new Date().toISOString().slice(0, 10) },
+    fields: [
+      { name: 'name', label: 'Nombre del evento', required: true, placeholder: 'Ej. Paola y Darío' },
+      { name: 'date', label: 'Fecha del evento', type: 'date' },
+      { name: 'pax', label: 'PAX (personas)', type: 'number', min: 0 },
+      { name: 'revenue', label: 'Monto cobrado', type: 'number', step: '0.01', min: 0, help: 'Lo que le cobrás al cliente (para el margen)' },
+      { name: 'description', label: 'Descripción', placeholder: 'Ej. Día del Padre' },
+    ],
+    onSubmit: async (v) => {
+      if (ev) await eventsApi.update(ev.id, v); else await eventsApi.create(v);
+      toast('Evento guardado', 'success'); reload();
+    },
+  });
+}
+
+async function renderEventos(host) {
+  host.innerHTML = '<div class="spinner">Cargando…</div>';
+  let events;
+  try { events = await eventsApi.list(); } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  const reload = () => renderEventos(host);
+  host.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn btn-accent" id="new-ev">+ Nuevo evento</button></div>
+    <p class="help">Agrupá los gastos de cada evento (catering) y mirá tu <strong>margen</strong> (cobrado − gastado). Cargá los ítems a mano, pegando una planilla o sacándole una <strong>foto a la lista</strong>.</p>
+    ${!events.length ? '<div class="panel"><div class="empty">Sin eventos. Creá el primero con "+ Nuevo evento".</div></div>'
+    : `<div class="list">${events.map((e) => `
+      <div class="list-item">
+        <div class="li-main">
+          <div class="li-title">${esc(e.name)} ${e.pax ? `<span class="badge badge-muted">${e.pax} pax</span>` : ''}</div>
+          <div class="li-sub">${new Date(e.date).toLocaleDateString('es-AR')}${e.description ? ' · ' + esc(e.description) : ''} · ${e.items} ítems</div>
+          <div class="li-sub">Cobrado ${money.format(e.revenue || 0)} · Gastado ${money.format(e.spent || 0)} · <strong style="color:${e.margin >= 0 ? 'var(--success)' : 'var(--danger)'}">Margen ${money.format(e.margin)}</strong></div>
+        </div>
+        <div class="li-actions"><button class="btn btn-sm btn-accent" data-open="${e.id}">Abrir</button><button class="btn btn-sm btn-danger" data-delev="${e.id}">Eliminar</button></div>
+      </div>`).join('')}</div>`}`;
+  host.querySelector('#new-ev').addEventListener('click', () => openEventForm(null, reload));
+  host.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => openEvent(host, b.dataset.open)));
+  host.querySelectorAll('[data-delev]').forEach((b) => b.addEventListener('click', async () => {
+    const e = events.find((x) => x.id === b.dataset.delev);
+    if (await confirmDialog(`¿Eliminar "${e.name}" y todos sus ítems? Es irreversible.`)) { await eventsApi.remove(e.id); toast('Evento eliminado', 'success'); reload(); }
+  }));
+}
+
+async function openEvent(host, id) {
+  host.innerHTML = '<div class="spinner">Cargando…</div>';
+  let ev;
+  try { ev = await eventsApi.get(id); } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  const reload = () => openEvent(host, id);
+  const vendors = [...new Set((ev.items || []).map((x) => x.vendor).filter(Boolean))];
+  const itemRow = (x) => {
+    const prod = x.items?.[0]?.desc || x.vendor || 'Ítem';
+    return `<div class="list-item">
+      <div class="li-main"><div class="li-title">${esc(prod)}</div><div class="li-sub">${x.vendor ? esc(x.vendor) : ''}${x.note ? (x.vendor ? ' · ' : '') + esc(x.note) : ''}</div></div>
+      <div class="li-amt">${money.format(x.total)}</div>
+      <div class="li-actions"><button class="btn btn-sm btn-danger" data-deli="${x._id}">✕</button></div>
+    </div>`;
+  };
+  host.innerHTML = `
+    <button class="btn btn-sm" id="ev-back">← Volver a eventos</button>
+    <div class="panel" style="margin-top:10px">
+      <div class="view-head" style="margin:0 0 6px"><h2>${esc(ev.name)}</h2><button class="btn btn-sm" id="ev-edit">Editar evento</button></div>
+      <div class="li-sub">${new Date(ev.date).toLocaleDateString('es-AR')}${ev.pax ? ` · ${ev.pax} pax` : ''}${ev.description ? ` · ${esc(ev.description)}` : ''}</div>
+      <div class="kpi-grid" style="margin-top:12px">
+        <div class="kpi"><div class="label">Cobrado</div><div class="value">${money.format(ev.revenue || 0)}</div></div>
+        <div class="kpi"><div class="label">Gastado</div><div class="value">${money.format(ev.spent || 0)}</div></div>
+        <div class="kpi"><div class="label">Margen</div><div class="value" style="color:${ev.margin >= 0 ? 'var(--success)' : 'var(--danger)'}">${money.format(ev.margin)} <span class="delta">${ev.revenue ? Math.round((ev.margin / ev.revenue) * 100) + '%' : ''}</span></div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Cargar ítems</h2>
+      <p class="muted" style="margin:0 0 10px;font-size:13px">Agregá filas (producto · proveedor · monto · cantidad), pegá una planilla o sacale una foto a la lista. Después tocá "Guardar ítems".</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <button class="btn" id="add-row">+ Fila</button>
+        <button class="btn" id="paste-rows">Pegar planilla</button>
+        <button class="btn" id="photo-rows">📷 Desde foto</button>
+        <input type="file" accept="image/*" id="ev-photo" hidden />
+      </div>
+      <datalist id="ev-vendors">${vendors.map((v) => `<option value="${esc(v)}"></option>`).join('')}</datalist>
+      <div id="ev-rows"></div>
+      <button class="btn btn-accent" id="save-items" style="margin-top:10px;display:none">Guardar ítems</button>
+    </div>
+    <div class="panel">
+      <h2>Ítems del evento (${ev.items.length})</h2>
+      ${ev.items.length ? `<div class="list">${ev.items.map(itemRow).join('')}</div>` : '<div class="empty">Sin ítems todavía.</div>'}
+    </div>`;
+
+  const rowsBox = host.querySelector('#ev-rows');
+  const saveBtn = host.querySelector('#save-items');
+  const refreshSave = () => { saveBtn.style.display = rowsBox.querySelector('.ev-row') ? '' : 'none'; };
+  const addRow = (v = {}) => {
+    const row = document.createElement('div');
+    row.className = 'ev-row';
+    row.innerHTML = `
+      <input class="input r-name" placeholder="Producto" value="${esc(v.name || '')}" />
+      <input class="input r-vendor" list="ev-vendors" placeholder="Proveedor" value="${esc(v.vendor || '')}" />
+      <input class="input r-amount" type="number" step="0.01" min="0" placeholder="Monto" value="${v.amount || ''}" />
+      <input class="input r-note" placeholder="Cantidad" value="${esc(v.note || '')}" />
+      <button class="btn btn-sm btn-danger r-del" title="Quitar">✕</button>`;
+    rowsBox.appendChild(row);
+    row.querySelector('.r-del').addEventListener('click', () => { row.remove(); refreshSave(); });
+    row.querySelector('.r-note').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addRow(); } });
+    refreshSave();
+    return row;
+  };
+  const collect = () => [...rowsBox.querySelectorAll('.ev-row')].map((r) => ({
+    name: r.querySelector('.r-name').value.trim(),
+    vendor: r.querySelector('.r-vendor').value.trim() || undefined,
+    amount: Number(r.querySelector('.r-amount').value) || 0,
+    note: r.querySelector('.r-note').value.trim() || undefined,
+  })).filter((i) => i.name && i.amount > 0);
+
+  host.querySelector('#ev-back').addEventListener('click', () => renderEventos(host));
+  host.querySelector('#ev-edit').addEventListener('click', () => openEventForm(ev, reload));
+  host.querySelector('#add-row').addEventListener('click', () => addRow().querySelector('.r-name').focus());
+  saveBtn.addEventListener('click', async () => {
+    const items = collect();
+    if (!items.length) { toast('Completá producto y monto', 'info'); return; }
+    try { const r = await eventsApi.addItems(id, items); toast(`${r.added} ítem(s) agregados`, 'success'); reload(); }
+    catch (ex) { toast(ex.message || 'No se pudieron guardar', 'error'); }
+  });
+  host.querySelector('#paste-rows').addEventListener('click', () => formModal({
+    title: 'Pegar planilla',
+    submitLabel: 'Cargar filas',
+    fields: [{ name: 'txt', label: 'Pegá las filas (de Excel/Sheets)', type: 'textarea', placeholder: 'producto  proveedor  monto  cantidad\n(una fila por línea)' }],
+    onSubmit: async (v) => {
+      const rows = (v.txt || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((l) => {
+        const c = l.split(/\t|;|,| {2,}/).map((s) => s.trim());
+        return { name: c[0] || '', vendor: c[1] || '', amount: Number(String(c[2] || '').replace(/[^0-9.,]/g, '').replace(',', '.')) || 0, note: c[3] || '' };
+      }).filter((i) => i.name);
+      if (!rows.length) throw new Error('No pude leer filas');
+      rows.forEach(addRow);
+      toast(`${rows.length} fila(s) cargadas — revisá y "Guardar ítems"`, 'success');
+    },
+  }));
+  const photoInput = host.querySelector('#ev-photo');
+  host.querySelector('#photo-rows').addEventListener('click', () => photoInput.click());
+  photoInput.addEventListener('change', async () => {
+    const file = photoInput.files[0]; if (!file) return;
+    toast('Leyendo la lista con IA…', 'info');
+    try {
+      const r = await eventItemsFromPhoto(id, file);
+      const rows = (r.items || []).filter((i) => i.name);
+      if (!rows.length) { toast('No detecté filas en la foto', 'info'); return; }
+      rows.forEach(addRow);
+      toast(`${rows.length} fila(s) detectadas — revisá y "Guardar ítems"`, 'success');
+    } catch (ex) { toast(ex.status === 503 ? 'Falta configurar ANTHROPIC_API_KEY' : (ex.message || 'No se pudo leer la foto'), 'error'); }
+  });
+  host.querySelectorAll('[data-deli]').forEach((b) => b.addEventListener('click', async () => {
+    await expensesApi.remove(b.dataset.deli); toast('Ítem eliminado', 'success'); reload();
   }));
 }
 

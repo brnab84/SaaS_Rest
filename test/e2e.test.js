@@ -117,6 +117,25 @@ test('límite de productos por plan (gating)', async () => {
   assert.equal(r.status, 400); // ya tiene 1 producto, supera el límite
 });
 
+test('eventos: crear, agregar ítems y calcular margen', async () => {
+  const c = await api('/api/events', { method: 'POST', token: state.token, body: { name: 'Paola y Darío', pax: 25, revenue: 55000, description: 'Día del Padre' } });
+  assert.equal(c.status, 201);
+  const eventId = (await c.json())._id;
+  const add = await api(`/api/events/${eventId}/items`, {
+    method: 'POST', token: state.token,
+    body: { items: [{ name: 'Panko', vendor: 'jumbo', amount: 983, note: '0,8kg' }, { name: 'Langostino', vendor: 'casa china', amount: 3000 }] },
+  });
+  assert.equal(add.status, 201);
+  assert.equal((await add.json()).added, 2);
+  const det = await (await api(`/api/events/${eventId}`, { token: state.token })).json();
+  assert.equal(det.items.length, 2);
+  assert.equal(det.spent, 3983);
+  assert.equal(det.margin, 55000 - 3983);
+  // los gastos del evento NO aparecen en "Generales"
+  const generales = await (await api('/api/expenses', { token: state.token })).json();
+  assert.ok(generales.every((g) => !g.eventId));
+});
+
 test('chat comercio ↔ root', async () => {
   const s = await api('/api/messages', { method: 'POST', token: state.token, body: { text: 'Hola soporte' } });
   assert.equal(s.status, 201);

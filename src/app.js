@@ -13,6 +13,7 @@ import productRoutes from './routes/products.js';
 import expenseRoutes from './routes/expenses.js';
 import campaignRoutes from './routes/campaigns.js';
 import dashboardRoutes from './routes/dashboard.js';
+import eventRoutes from './routes/events.js';
 import tenantRoutes from './routes/tenant.js';
 import fileRoutes from './routes/files.js';
 import publicRoutes from './routes/public.js';
@@ -64,6 +65,7 @@ export function createApp() {
   app.use('/api/expenses', apiLimiter, expenseRoutes);
   app.use('/api/campaigns', apiLimiter, campaignRoutes);
   app.use('/api/dashboard', apiLimiter, dashboardRoutes);
+  app.use('/api/events', apiLimiter, eventRoutes);
   app.use('/api/tenant', apiLimiter, tenantRoutes);
   app.use('/api/admin', apiLimiter, adminRoutes); // panel del dueño de la app (root)
   app.use('/api/messages', apiLimiter, messageRoutes); // chat comercio ↔ dueño de la app
