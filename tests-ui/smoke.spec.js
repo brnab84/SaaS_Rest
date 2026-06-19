@@ -49,6 +49,24 @@ test('panel: la planilla Excel guarda al editar una celda', async ({ page }) => 
   await expect(page.locator('.jexcel td[data-x="2"][data-y="0"]')).toHaveText('Harina editada QA', { timeout: 10000 });
 });
 
+test('panel: la planilla crea una fila nueva (+ fila → guardar)', async ({ page }) => {
+  await login(page, 'qa@test.local');
+  await page.locator('.tab[data-nav="gastos"]').click();
+  await page.locator('.seg-btn[data-view="table"]').click();
+  await expect(page.locator('.jexcel')).toBeVisible({ timeout: 10000 });
+  await page.click('#grid-add'); // + fila
+  const y = await page.locator('.jexcel tbody tr').last().locator('td[data-x="2"]').getAttribute('data-y');
+  await page.locator(`.jexcel td[data-x="2"][data-y="${y}"]`).dblclick(); // Producto
+  await page.keyboard.type('Servilletas QA');
+  await page.keyboard.press('Tab'); // commit sin crear otra fila
+  await page.locator(`.jexcel td[data-x="5"][data-y="${y}"]`).dblclick(); // Precio
+  await page.keyboard.type('450');
+  await page.keyboard.press('Tab'); // commit → onchange → crea el gasto
+  await page.waitForTimeout(900); // deja viajar el POST
+  await page.reload();
+  await expect(page.locator('.jexcel td[data-x="2"]').filter({ hasText: 'Servilletas QA' })).toBeVisible({ timeout: 10000 });
+});
+
 test('panel: gastos en hojas (pestañas)', async ({ page }) => {
   await login(page, 'qa@test.local');
   await page.locator('.tab[data-nav="gastos"]').click();

@@ -428,6 +428,14 @@ async function renderGenerales(host) {
   const byCat = {};
   items.forEach((x) => { const k = x.category || 'other'; byCat[k] = (byCat[k] || 0) + (Number(x.total) || 0); });
   const sheetName = active === 'general' ? 'General' : (sheets.find((s) => s._id === active)?.name || 'Hoja');
+  // Recalcula el resumen (total/cantidad/categorías) en vivo, sin recargar toda la vista.
+  const updateSummary = () => {
+    const t = items.reduce((a, x) => a + (Number(x.total) || 0), 0);
+    const amtEl = host.querySelector('.exp-summary .sum-amt'); if (amtEl) amtEl.textContent = money.format(t);
+    const cntEl = host.querySelector('.exp-summary .sum-count'); if (cntEl) cntEl.textContent = `${items.length} gasto${items.length === 1 ? '' : 's'}`;
+    const bc = {}; items.forEach((x) => { const k = x.category || 'other'; bc[k] = (bc[k] || 0) + (Number(x.total) || 0); });
+    const catEl = host.querySelector('.exp-summary .sum-cats'); if (catEl) catEl.innerHTML = Object.entries(bc).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span class="sum-cat">${esc(CAT_ES[k] || k)} <b>${money.format(v)}</b></span>`).join('');
+  };
   // si la hoja activa se borró en otro lado, volver a General
   if (active !== 'general' && !sheets.some((s) => s._id === active)) { setExpSheet('general'); renderGenerales(host); return; }
   const reload = () => renderGenerales(host);
@@ -660,9 +668,12 @@ async function renderGenerales(host) {
         } else {
           const created = await expensesApi.create({ ...body, sheetId: sheetIdForNew() });
           items.push(created);
-          syncing = true; grid.setValueFromCoords(0, y, created._id, true); syncing = false;
+          syncing = true;
+          try { grid.setValueFromCoords(0, y, created._id, true); } catch {} // guardar el id en la fila (col oculta)
+          syncing = false;
         }
-      } catch (e) { toast(e.message || 'No se pudo guardar', 'error'); }
+        updateSummary();
+      } catch (e) { syncing = false; toast(e.message || 'No se pudo guardar', 'error'); }
     };
 
     grid = window.jspreadsheet(el, {
@@ -689,9 +700,16 @@ async function renderGenerales(host) {
           const id = Array.isArray(vals) ? vals[0] : null;
           if (id) { try { await expensesApi.remove(id); items = items.filter((e) => e._id !== id); } catch {} }
         }
+        updateSummary();
       },
     });
-    box.querySelector('#grid-add').addEventListener('click', () => grid.insertRow([blankRow()]));
+    box.querySelector('#grid-add').addEventListener('click', () => {
+      // insertRow() agrega una fila vacía al final (forma segura del API); el día/categoría
+      // toman sus valores por defecto en el servidor al guardar.
+      const n = grid.getData().length;
+      grid.insertRow();
+      try { syncing = true; grid.setValueFromCoords(1, n, today, true); syncing = false; } catch { syncing = false; } // prefijar el Día
+    });
     box.querySelector('#col-add').addEventListener('click', async () => {
       const label = window.prompt('Nombre de la columna (ej. N° factura, Forma de pago):');
       if (!label || !label.trim()) return;
