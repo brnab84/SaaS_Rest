@@ -17,6 +17,11 @@ test('panel: comercio normal — todas las pestañas cargan sin error de consola
     await page.locator(`.tab[data-nav="${id}"]`).click();
     await expect(page.locator('.view-head h1')).toBeVisible();
   }
+  // Gastos: ambas solapas deben renderizar (cubre el sub-render "Por evento")
+  await page.locator('.tab[data-nav="gastos"]').click();
+  await page.locator('.seg-btn[data-gt="eventos"]').click();
+  await expect(page.locator('#new-ev')).toBeVisible();
+  await page.locator('.seg-btn[data-gt="generales"]').click();
   // un comercio normal NO debe ver la pestaña Admin
   await expect(page.locator('.tab[data-nav="admin"]')).toHaveCount(0);
   expect(errors, `errores de consola:\n${errors.join('\n')}`).toEqual([]);

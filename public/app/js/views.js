@@ -1,4 +1,4 @@
-import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto, importProductsFromWhatsApp, ordersStreamUrl, adminApi, getToken, messagesApi } from './api.js';
+import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto, importProductsFromWhatsApp, ordersStreamUrl, adminApi, getToken, messagesApi, eventsApi, eventItemsFromPhoto } from './api.js';
 import { money, num, esc, formModal, confirmDialog, infoModal, toast, onInterval, clearTimers, onCleanup, playPing, pushNotify, requestNotifyPermission, soundEnabled, setSoundEnabled, getTone, setTone, getAlarmLevel, setAlarmLevel, getComanda, setComanda, printComanda, connectThermal, testComanda } from './ui.js';
 import { renderThemePicker } from './themes.js';
 
