@@ -1,5 +1,5 @@
 import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto, importProductsFromWhatsApp, ordersStreamUrl, adminApi, getToken } from './api.js';
-import { money, num, esc, formModal, confirmDialog, infoModal, toast, onInterval, clearTimers, onCleanup, playPing, pushNotify, requestNotifyPermission, soundEnabled, setSoundEnabled, getTone, setTone } from './ui.js';
+import { money, num, esc, formModal, confirmDialog, infoModal, toast, onInterval, clearTimers, onCleanup, playPing, pushNotify, requestNotifyPermission, soundEnabled, setSoundEnabled, getTone, setTone, getComanda, setComanda, printComanda, connectThermal, testComanda } from './ui.js';
 import { renderThemePicker } from './themes.js';
 
 const CAT_ES = { supplies: 'Insumos', rent: 'Alquiler', salary: 'Sueldos', utilities: 'Servicios', other: 'Otros' };
@@ -16,6 +16,7 @@ const nextStatus = (s) => { const i = ORDER_FLOW.indexOf(s); return i >= 0 && i 
 
 // Para avisar de pedidos nuevos: recordamos los ids ya vistos en esta sesión (null = primera carga).
 let _seenOrderIds = null;
+let _bizName = null; // nombre del comercio, cacheado para el ticket de comanda
 const waNumber = (phone) => String(phone || '').replace(/\D/g, '');
 const waReply = (o) => `Hola ${o.customer?.name || ''}! Te escribimos por tu pedido #${o.code}.`;
 
@@ -303,6 +304,7 @@ export async function renderPedidos(host, opts = {}) {
     return;
   }
   const reload = () => renderPedidos(host);
+  if (_bizName === null) { try { _bizName = (await tenantApi.get()).name || ''; } catch { _bizName = ''; } }
 
   // Aviso de pedidos nuevos (sonido + notificación), solo después de la primera carga de la sesión.
   if (_seenOrderIds === null) {
@@ -315,6 +317,8 @@ export async function renderPedidos(host, opts = {}) {
       const extra = fresh.length > 1 ? ` (+${fresh.length - 1} más)` : '';
       pushNotify('Nuevo pedido', `#${o.code} · ${o.customer?.name || 'Cliente'} · ${money.format(o.total)}${extra}`);
       toast(`🔔 Nuevo pedido #${o.code}${extra}`, 'success');
+      const c = getComanda(); // auto-impresión de comanda si está activada
+      if (c.on && c.auto) for (const f of fresh) printComanda(f, _bizName).catch(() => {});
     }
     for (const o of items) _seenOrderIds.add(o._id);
   }
@@ -334,6 +338,7 @@ export async function renderPedidos(host, opts = {}) {
         </div>
         <div class="li-amt">${money.format(o.total)}</div>
         <div class="li-actions">
+          <button class="btn btn-sm" data-print="${o._id}" title="Imprimir comanda">🖨️</button>
           ${o.customer?.phone ? `<a class="btn btn-sm" href="https://wa.me/${waNumber(o.customer.phone)}?text=${encodeURIComponent(waReply(o))}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}
           ${next ? `<button class="btn btn-sm btn-accent" data-next="${o._id}" data-to="${next}">${ORDER_LABEL[next]} ▸</button>` : ''}
           ${!paid && o.status !== 'cancelled' ? `<button class="btn btn-sm" data-pay="${o._id}">Cobrado</button>` : ''}
@@ -351,6 +356,11 @@ export async function renderPedidos(host, opts = {}) {
   }));
   host.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', async () => {
     if (await confirmDialog('¿Cancelar este pedido?')) { await ordersApi.setStatus(b.dataset.cancel, 'cancelled'); toast('Pedido cancelado', 'success'); reload(); }
+  }));
+  host.querySelectorAll('[data-print]').forEach((b) => b.addEventListener('click', async () => {
+    const o = items.find((x) => x._id === b.dataset.print);
+    try { await printComanda(o, _bizName); }
+    catch (ex) { toast(ex.message || 'No se pudo imprimir', 'error'); }
   }));
 
   if (!opts.silent) { scheduleOrders(host); startOrderStream(host); }
@@ -553,6 +563,7 @@ export async function renderAjustes(host) {
   const coverPos = Number.isFinite(tenant.branding?.coverPos) ? tenant.branding.coverPos : 50;
   const menuLayout = tenant.settings?.menuLayout || 'list';
   const itemDetail = tenant.settings?.itemDetail === true;
+  const cmd = getComanda(); // preferencias de impresión (por dispositivo)
   // Plan y uso (Infinity llega como null = sin límite)
   const planId = usage?.plan || tenant.plan || 'free';
   const plans = usage?.plans || {};
@@ -628,6 +639,33 @@ export async function renderAjustes(host) {
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
         <button class="btn btn-sm" id="snd-test">▶ Probar sonido</button>
         <button class="btn btn-sm" id="notif-perm">Activar avisos del sistema</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Comanda / impresión</h2>
+      <p class="muted" style="margin:0 0 12px">Imprimí el ticket de cocina por pedido. Es <strong>por dispositivo</strong> (cada PC configura su impresora) y <strong>no requiere instalar nada</strong>.</p>
+      <label class="field-check"><input type="checkbox" id="cmd-on" ${cmd.on ? 'checked' : ''}/> Activar comanda (muestra 🖨️ en cada pedido)</label>
+      <div class="field" style="margin-top:10px"><label>Método de impresión</label>
+        <select class="input" id="cmd-method">
+          <option value="system" ${cmd.method === 'system' ? 'selected' : ''}>Impresora del sistema (diálogo · cualquier dispositivo)</option>
+          <option value="thermal" ${cmd.method === 'thermal' ? 'selected' : ''}>Térmica directa USB, sin diálogo (Chrome/Edge de escritorio)</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div class="field" style="flex:1;min-width:120px"><label>Ancho</label>
+          <select class="input" id="cmd-width"><option value="80" ${cmd.width === '80' ? 'selected' : ''}>80 mm</option><option value="58" ${cmd.width === '58' ? 'selected' : ''}>58 mm</option></select>
+        </div>
+        <div class="field" style="flex:1;min-width:120px"><label>Copias</label>
+          <input class="input" type="number" min="1" max="5" id="cmd-copies" value="${cmd.copies || 1}" />
+        </div>
+      </div>
+      <div class="field" id="cmd-baud-row" style="${cmd.method === 'thermal' ? '' : 'display:none'}"><label>Velocidad (baud · modo térmico)</label>
+        <select class="input" id="cmd-baud">${[9600, 19200, 38400, 115200].map((b) => `<option value="${b}" ${Number(cmd.baud) === b ? 'selected' : ''}>${b}</option>`).join('')}</select>
+      </div>
+      <label class="field-check" style="margin-top:8px"><input type="checkbox" id="cmd-auto" ${cmd.auto ? 'checked' : ''}/> Imprimir automáticamente al entrar un pedido nuevo</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+        <button class="btn btn-sm" id="cmd-connect" style="${cmd.method === 'thermal' ? '' : 'display:none'}">Conectar impresora</button>
+        <button class="btn btn-sm btn-accent" id="cmd-test">Probar impresión</button>
       </div>
     </div>
     <div class="panel">
@@ -799,6 +837,28 @@ export async function renderAjustes(host) {
   host.querySelector('#item-detail')?.addEventListener('change', async (e) => {
     try { await tenantApi.update({ settings: { itemDetail: e.target.checked } }); toast(e.target.checked ? 'Detalle de ítem activado' : 'Detalle de ítem desactivado', 'success'); }
     catch (ex) { toast(ex.message || 'No se pudo guardar', 'error'); e.target.checked = !e.target.checked; }
+  });
+
+  // Comanda / impresión (preferencias por dispositivo, en localStorage)
+  const cmdMethod = host.querySelector('#cmd-method');
+  const syncCmd = () => {
+    const th = cmdMethod?.value === 'thermal';
+    const baudRow = host.querySelector('#cmd-baud-row'); if (baudRow) baudRow.style.display = th ? '' : 'none';
+    const conn = host.querySelector('#cmd-connect'); if (conn) conn.style.display = th ? '' : 'none';
+  };
+  host.querySelector('#cmd-on')?.addEventListener('change', (e) => setComanda({ on: e.target.checked }));
+  cmdMethod?.addEventListener('change', () => { setComanda({ method: cmdMethod.value }); syncCmd(); });
+  host.querySelector('#cmd-width')?.addEventListener('change', (e) => setComanda({ width: e.target.value }));
+  host.querySelector('#cmd-copies')?.addEventListener('change', (e) => setComanda({ copies: Math.max(1, Math.min(5, Number(e.target.value) || 1)) }));
+  host.querySelector('#cmd-baud')?.addEventListener('change', (e) => setComanda({ baud: Number(e.target.value) }));
+  host.querySelector('#cmd-auto')?.addEventListener('change', (e) => setComanda({ auto: e.target.checked }));
+  host.querySelector('#cmd-connect')?.addEventListener('click', async () => {
+    try { await connectThermal(); toast('Impresora conectada', 'success'); }
+    catch (ex) { toast(ex.message || 'No se pudo conectar', 'error'); }
+  });
+  host.querySelector('#cmd-test')?.addEventListener('click', async () => {
+    try { await testComanda(tenant.name); toast('Enviado a imprimir', 'success'); }
+    catch (ex) { toast(ex.message || 'No se pudo imprimir', 'error'); }
   });
 
   host.querySelector('#copy-link')?.addEventListener('click', async () => {

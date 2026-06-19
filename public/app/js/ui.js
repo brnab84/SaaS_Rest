@@ -146,6 +146,113 @@ export async function requestNotifyPermission() {
   try { if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission(); } catch {}
 }
 
+/* ===== Comanda / impresión (preferencias por dispositivo) =====
+ * Dos métodos parametrizables:
+ *  - 'system': ticket 80/58mm impreso con el diálogo del navegador (cualquier impresora).
+ *  - 'thermal': impresión directa ESC/POS por Web Serial (Chrome/Edge desktop, sin diálogo).
+ */
+const C_KEY = 'restaurapp.comanda';
+const C_DEF = { on: false, method: 'system', width: '80', auto: false, copies: 1, baud: 9600 };
+export function getComanda() { try { return { ...C_DEF, ...(JSON.parse(localStorage.getItem(C_KEY) || '{}')) }; } catch { return { ...C_DEF }; } }
+export function setComanda(p) { try { localStorage.setItem(C_KEY, JSON.stringify({ ...getComanda(), ...p })); } catch {} }
+
+const deburr = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+// --- Método 'system': ticket HTML para 80/58mm vía iframe + print() ---
+function systemTicketHTML(o, businessName, c) {
+  const mm = c.width === '58' ? '58mm' : '80mm';
+  const rows = (o.items || []).map((i) => `<tr><td class="q">${i.qty}×</td><td>${esc(i.name || '')}</td></tr>`).join('');
+  const when = new Date(o.createdAt || Date.now()).toLocaleString('es-AR');
+  const cust = [o.customer?.name, o.customer?.phone].filter(Boolean).join(' · ');
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+    @page { size: ${mm} auto; margin: 0; }
+    * { font-family: 'Courier New', monospace; }
+    body { width: ${mm}; margin: 0; padding: 6px 8px; color: #000; }
+    h1 { font-size: 15px; text-align: center; margin: 0 0 2px; }
+    .sub { text-align: center; font-size: 11px; letter-spacing: 2px; }
+    .code { text-align: center; font-size: 22px; font-weight: bold; margin: 6px 0; }
+    .meta { font-size: 11px; }
+    hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    td { padding: 2px 0; vertical-align: top; } td.q { width: 34px; font-weight: bold; }
+    .tot { font-size: 15px; font-weight: bold; text-align: right; margin-top: 8px; }
+  </style></head><body>
+    <h1>${esc(businessName || 'Comanda')}</h1><div class="sub">COMANDA</div>
+    <div class="code">#${esc(o.code || '')}</div>
+    <div class="meta">${esc(when)}</div>
+    <div class="meta">${esc(o.channel || '')}${cust ? ` · ${esc(cust)}` : ''}</div>
+    <hr><table>${rows}</table><hr>
+    <div class="tot">TOTAL ${money.format(o.total || 0)}</div>
+    ${o.customer?.address ? `<div class="meta">Dir: ${esc(o.customer.address)}</div>` : ''}
+  </body></html>`;
+}
+function systemPrint(html) {
+  const ifr = document.createElement('iframe');
+  ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(ifr);
+  const doc = ifr.contentWindow.document; doc.open(); doc.write(html); doc.close();
+  const go = () => { try { ifr.contentWindow.focus(); ifr.contentWindow.print(); } catch {} setTimeout(() => ifr.remove(), 1500); };
+  if (doc.readyState === 'complete') setTimeout(go, 60); else ifr.onload = go;
+}
+
+// --- Método 'thermal': ESC/POS por Web Serial ---
+let _port = null; let _portOpen = false;
+async function ensurePort(pick, baud) {
+  if (!('serial' in navigator)) throw new Error('Este navegador no soporta impresión directa. Usá Chrome/Edge de escritorio o el método "Impresora del sistema".');
+  if (!_port || pick) {
+    if (pick) { _port = await navigator.serial.requestPort(); _portOpen = false; }
+    else { const ports = await navigator.serial.getPorts(); if (ports[0]) _port = ports[0]; else _port = await navigator.serial.requestPort(); }
+  }
+  if (!_portOpen) { await _port.open({ baudRate: Number(baud) || 9600 }); _portOpen = true; }
+  return _port;
+}
+function escposTicket(o, businessName, c) {
+  const enc = new TextEncoder(); const out = [];
+  const raw = (a) => out.push(...a);
+  const txt = (s) => out.push(...enc.encode(deburr(s)));
+  const LF = 0x0a; const ESC = 0x1b; const GS = 0x1d;
+  raw([ESC, 0x40]);                 // init
+  raw([ESC, 0x61, 1]);              // center
+  raw([GS, 0x21, 0x11]); txt(businessName || 'Comanda'); raw([GS, 0x21, 0x00], LF);
+  txt('COMANDA'); raw([LF]);
+  raw([GS, 0x21, 0x11]); txt('#' + (o.code || '')); raw([GS, 0x21, 0x00], LF, LF);
+  raw([ESC, 0x61, 0]);             // left
+  txt(new Date(o.createdAt || Date.now()).toLocaleString('es-AR')); raw([LF]);
+  const cust = [o.customer?.name, o.customer?.phone].filter(Boolean).join(' - ');
+  if (o.channel || cust) { txt(`${o.channel || ''}${cust ? ' - ' + cust : ''}`); raw([LF]); }
+  txt('--------------------------------'); raw([LF]);
+  for (const i of (o.items || [])) { txt(`${i.qty}x ${i.name || ''}`); raw([LF]); }
+  txt('--------------------------------'); raw([LF]);
+  raw([ESC, 0x61, 2]);             // right
+  raw([GS, 0x21, 0x01]); txt('TOTAL ' + money.format(o.total || 0)); raw([GS, 0x21, 0x00], LF);
+  if (o.customer?.address) { raw([ESC, 0x61, 0]); txt('Dir: ' + o.customer.address); raw([LF]); }
+  raw([LF, LF, LF]);
+  raw([GS, 0x56, 0x42, 0x00]);     // corte parcial
+  return new Uint8Array(out);
+}
+async function thermalPrint(data, baud) {
+  const port = await ensurePort(false, baud);
+  const w = port.writable.getWriter();
+  try { await w.write(data); } finally { w.releaseLock(); }
+}
+
+// Imprime una comanda según el método configurado. Lanza error si falla (para avisar).
+export async function printComanda(order, businessName) {
+  const c = getComanda();
+  const copies = Math.max(1, Number(c.copies) || 1);
+  for (let i = 0; i < copies; i += 1) {
+    if (c.method === 'thermal') await thermalPrint(escposTicket(order, businessName, c), c.baud); // eslint-disable-line no-await-in-loop
+    else systemPrint(systemTicketHTML(order, businessName, c));
+  }
+}
+// Conectar la térmica (elige el puerto; el permiso queda guardado para la próxima).
+export async function connectThermal() { const c = getComanda(); await ensurePort(true, c.baud); }
+// Prueba de impresión (ignora el on/off; usa el método configurado).
+export async function testComanda(businessName) {
+  const sample = { code: 'PRUEBA', createdAt: Date.now(), channel: 'test', customer: { name: 'Cliente de prueba' }, items: [{ qty: 1, name: 'Item de prueba' }, { qty: 2, name: 'Otro item' }], total: 1234 };
+  return printComanda(sample, businessName);
+}
+
 // Modal informativo (solo lectura, con HTML confiable provisto por la vista).
 export function infoModal({ title, html, closeLabel = 'Cerrar' }) {
   const ov = overlay();
