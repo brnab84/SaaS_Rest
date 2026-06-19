@@ -229,17 +229,20 @@
   }
 
   function renderTracking(o) {
-    const FLOW = [['new', 'Pedido recibido'], ['confirmed', 'Confirmado'], ['preparing', 'En preparación'], ['ready', 'Listo'], ['on_way', 'En camino'], ['delivered', 'Entregado']];
+    const FLOW = [['new', 'Pedido recibido', '🧾'], ['confirmed', 'Confirmado', '✅'], ['preparing', 'En preparación', '👨‍🍳'], ['ready', 'Listo', '🛍️'], ['on_way', 'En camino', '🛵'], ['delivered', 'Entregado', '🎉']];
     const times = {}; (o.timeline || []).forEach((t) => { if (!times[t.status]) times[t.status] = t.at; });
     const b = tenant.branding || {};
     const cancelled = o.status === 'cancelled';
     const idx = FLOW.findIndex(([s]) => s === o.status);
+    const pct = cancelled ? 0 : Math.round(((idx + 1) / FLOW.length) * 100);
+    const progress = cancelled ? '' : `<div class="track-prog"><div class="track-prog-bar" style="width:${pct}%"></div></div><div class="track-step-count">Paso ${idx + 1} de ${FLOW.length}</div>`;
     const steps = cancelled
       ? `<div class="step current cancelled"><span class="dot">✕</span><div class="s-main"><div class="s-label">Pedido cancelado</div>${times.cancelled ? `<div class="s-time">${fmtTime(times.cancelled)}</div>` : ''}</div></div>`
-      : FLOW.map(([s, label], i) => {
+      : FLOW.map(([s, label, icon], i) => {
         const done = i < idx; const current = i === idx;
         const t = times[s] ? `<div class="s-time">${fmtTime(times[s])}</div>` : '';
-        return `<div class="step ${done ? 'done' : ''} ${current ? 'current' : ''}"><span class="dot">${done ? '✓' : (current ? '●' : '')}</span><div class="s-main"><div class="s-label">${label}</div>${t}</div></div>`;
+        const mark = done ? '✓' : icon; // pasados: tilde; actual/pendiente: su emoji
+        return `<div class="step ${done ? 'done' : ''} ${current ? 'current' : ''}"><span class="dot">${mark}</span><div class="s-main"><div class="s-label">${icon} ${label}</div>${t}</div></div>`;
       }).join('');
     const waBtn = b.phone ? '<button class="btn btn-ghost" id="t-wa">Consultar por WhatsApp</button>' : '';
     const canCancel = o.status === 'new' && tenant.allowCancel !== false; // el comercio puede deshabilitarlo
@@ -247,6 +250,7 @@
     app.innerHTML = header() + `<div class="wrap"><div class="track">
       <div class="track-head"><h2>Seguimiento de tu pedido</h2><div class="code">#${esc(o.code)}</div></div>
       <div class="line total"><span>Total</span><span>${fmt.format(o.total)}</span></div>
+      ${progress}
       <div class="steps">${steps}</div>
       <div class="track-actions">${cancelBtn}${waBtn}<button class="btn btn-primary" id="t-again">Hacer otro pedido</button></div>
       <p class="track-hint">Esta página se actualiza sola a medida que avanza tu pedido. Guardá el link para volver a verla.</p>

@@ -37,12 +37,24 @@ router.get('/stream', (req, res, next) => {
 
 router.use(requireAuth);
 
-// Listar pedidos activos del tenant (panel en vivo)
+// Horas que un pedido entregado/cancelado sigue visible en la lista activa antes de archivarse.
+const ARCHIVE_HOURS = 12;
+
+// Listar pedidos del tenant. Por defecto: activos (no entregados/cancelados, más los
+// finalizados en las últimas 12h). ?archived=1 = historial archivado. ?status=X = filtro exacto.
 router.get('/', async (req, res, next) => {
   try {
-    const { status } = req.query;
-    const filter = { tenantId: req.auth.tenantId };
-    if (status) filter.status = status;
+    const { status, archived } = req.query;
+    const tenantId = req.auth.tenantId;
+    const cutoff = new Date(Date.now() - ARCHIVE_HOURS * 3600 * 1000);
+    let filter;
+    if (status) {
+      filter = { tenantId, status };
+    } else if (archived === '1') {
+      filter = { tenantId, status: { $in: ['delivered', 'cancelled'] }, updatedAt: { $lt: cutoff } };
+    } else {
+      filter = { tenantId, $or: [{ status: { $nin: ['delivered', 'cancelled'] } }, { updatedAt: { $gte: cutoff } }] };
+    }
     const orders = await Order.find(filter).sort({ createdAt: -1 }).limit(100);
     res.json(orders);
   } catch (e) { next(e); }

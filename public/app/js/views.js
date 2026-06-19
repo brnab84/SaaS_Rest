@@ -17,6 +17,7 @@ const nextStatus = (s) => { const i = ORDER_FLOW.indexOf(s); return i >= 0 && i 
 // Para avisar de pedidos nuevos: recordamos los ids ya vistos en esta sesión (null = primera carga).
 let _seenOrderIds = null;
 let _bizName = null; // nombre del comercio, cacheado para el ticket de comanda
+let _ordersArchived = false; // ¿la vista de Pedidos muestra los archivados?
 const waNumber = (phone) => String(phone || '').replace(/\D/g, '');
 const waReply = (o) => `Hola ${o.customer?.name || ''}! Te escribimos por tu pedido #${o.code}.`;
 
@@ -293,9 +294,10 @@ export async function renderPedidos(host, opts = {}) {
   // Solo en carga real (no en refresco silencioso) reiniciamos timers + stream para no acumular.
   if (!opts.silent) clearTimers();
   if (!opts.silent) loading(host);
+  const archived = _ordersArchived;
   let items;
   try {
-    items = await ordersApi.list();
+    items = await ordersApi.list(archived ? '?archived=1' : '');
   } catch (e) {
     if (!opts.silent) {
       host.innerHTML = `<div class="empty">${esc(e.message)} — reintentando…</div>`;
@@ -306,8 +308,10 @@ export async function renderPedidos(host, opts = {}) {
   const reload = () => renderPedidos(host);
   if (_bizName === null) { try { _bizName = (await tenantApi.get()).name || ''; } catch { _bizName = ''; } }
 
-  // Aviso de pedidos nuevos (sonido + notificación), solo después de la primera carga de la sesión.
-  if (_seenOrderIds === null) {
+  // Aviso de pedidos nuevos (sonido + notificación), solo en la vista activa.
+  if (archived) {
+    // no tocar _seenOrderIds ni alertas en el historial
+  } else if (_seenOrderIds === null) {
     _seenOrderIds = new Set(items.map((o) => o._id));
   } else {
     const fresh = items.filter((o) => o.status === 'new' && !_seenOrderIds.has(o._id));
@@ -324,9 +328,9 @@ export async function renderPedidos(host, opts = {}) {
   }
 
   host.innerHTML = `
-    <div class="view-head"><h1>Pedidos</h1><div style="display:flex;gap:10px;align-items:center"><span class="live">● En vivo</span><button class="btn btn-sm" id="refresh">Actualizar</button></div></div>
-    <p class="help">Acá caen los pedidos de tu landing, WhatsApp y delivery <strong>al instante</strong> (conexión en vivo; si se corta, igual refresca cada 25s). Tocá el botón azul para <strong>avanzar el estado</strong> (Nuevo → Confirmado → En cocina → Listo → En camino → Entregado); al cliente se le avisa por WhatsApp si tenés esa integración. Usá <strong>💬 WhatsApp</strong> para responderle rápido.</p>
-    ${!items.length ? '<div class="panel"><div class="empty">No hay pedidos activos. Los pedidos de la landing, WhatsApp y delivery aparecen acá.</div></div>'
+    <div class="view-head"><h1>Pedidos${archived ? ' · archivados' : ''}</h1><div style="display:flex;gap:10px;align-items:center">${archived ? '' : '<span class="live">● En vivo</span>'}<button class="btn btn-sm" id="toggle-arch">${archived ? '← Activos' : 'Archivados'}</button><button class="btn btn-sm" id="refresh">Actualizar</button></div></div>
+    <p class="help">${archived ? 'Pedidos <strong>entregados o cancelados</strong> de hace más de 12 h. Siguen contando en tus ventas; acá podés reimprimir su comanda.' : 'Acá caen los pedidos al <strong>instante</strong> (en vivo; si se corta, refresca cada 25s). Avanzá el estado con el botón azul. Los <strong>entregados/cancelados se archivan solos a las 12 h</strong> (botón "Archivados").'}</p>
+    ${!items.length ? `<div class="panel"><div class="empty">${archived ? 'No hay pedidos archivados todavía.' : 'No hay pedidos activos. Los pedidos de la landing, WhatsApp y delivery aparecen acá.'}</div></div>`
     : `<div class="list">${items.map((o) => {
       const next = nextStatus(o.status);
       const paid = o.payment?.status === 'paid';
@@ -348,6 +352,7 @@ export async function renderPedidos(host, opts = {}) {
     }).join('')}</div>`}`;
 
   host.querySelector('#refresh').addEventListener('click', reload);
+  host.querySelector('#toggle-arch')?.addEventListener('click', () => { _ordersArchived = !_ordersArchived; renderPedidos(host); });
   host.querySelectorAll('[data-next]').forEach((b) => b.addEventListener('click', async () => {
     await ordersApi.setStatus(b.dataset.next, b.dataset.to); toast(`Pedido → ${ORDER_LABEL[b.dataset.to]}`, 'success'); reload();
   }));

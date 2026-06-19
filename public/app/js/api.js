@@ -89,7 +89,7 @@ export const adminApi = {
 };
 
 export const ordersApi = {
-  list: (status) => request(`/orders${status ? `?status=${status}` : ''}`),
+  list: (q = '') => request(`/orders${q}`),
   setStatus: (id, status) => request(`/orders/${id}/status`, { method: 'PATCH', body: { status } }),
   pay: (id) => request(`/orders/${id}/pay`, { method: 'POST' }),
 };
