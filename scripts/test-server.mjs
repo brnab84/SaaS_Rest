@@ -19,6 +19,7 @@ await loadPlans();
 const { Tenant } = await import('../src/models/Tenant.js');
 const { User } = await import('../src/models/User.js');
 const { Product } = await import('../src/models/Product.js');
+const { Expense } = await import('../src/models/Expense.js');
 
 async function seed(name, slug, email) {
   let t = await Tenant.findOne({ slug });
@@ -35,6 +36,9 @@ const qa = await seed('QA Demo', 'qa-demo', 'qa@test.local');
 await seed('QA Root', 'qa-root', 'root@test.local');
 if (!(await Product.findOne({ tenantId: qa._id }))) {
   await Product.create({ tenantId: qa._id, name: 'Roll QA', price: 5000, category: 'Rolls', available: true });
+}
+if (!(await Expense.findOne({ tenantId: qa._id }))) {
+  await Expense.create({ tenantId: qa._id, vendor: 'jumbo', note: '1kg', total: 983, category: 'supplies', items: [{ desc: 'Harina 0000', amount: 983 }] });
 }
 
 const { createApp } = await import('../src/app.js');

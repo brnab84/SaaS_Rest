@@ -140,6 +140,16 @@ button { font-family: var(--font); cursor: pointer; }
 .seg { display: inline-flex; background: var(--surface-2); border: var(--border-w) var(--border-style) var(--border-color); border-radius: 999px; padding: 3px; }
 .seg-btn { border: none; background: none; color: var(--text-muted); font-weight: 700; font-size: 13px; padding: 7px 14px; border-radius: 999px; cursor: pointer; }
 .seg-btn.on { background: var(--accent); color: #fff; }
+/* Tabla tipo Excel (gastos) */
+.xls-wrap { overflow-x: auto; border: var(--border-w) var(--border-style) var(--border-color); border-radius: var(--radius); }
+.xls { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 600px; }
+.xls th, .xls td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+.xls thead th { background: var(--surface-2); font-weight: 700; position: sticky; top: 0; }
+.xls th[data-sort] { cursor: pointer; user-select: none; }
+.xls th[data-sort]:hover { color: var(--accent); }
+.xls td.num, .xls th.num { text-align: right; font-family: var(--font-mono); }
+.xls tbody tr:hover { background: var(--surface-2); }
+.xls .xls-act { display: flex; gap: 4px; }
 /* Filas de carga rápida de ítems de evento */
 .ev-row { display: grid; grid-template-columns: 1.5fr 1fr 90px 1fr 34px; gap: 6px; margin-bottom: 6px; align-items: center; }
 .ev-row .input { padding: 8px; font-size: 13px; }

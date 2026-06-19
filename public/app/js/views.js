@@ -390,6 +390,10 @@ function startOrderStream(host) {
 
 /* ===================== GASTOS ===================== */
 let _gtab = 'generales'; // solapa activa: generales | eventos
+let _expSort = { field: 'date', dir: -1 }; // orden de la tabla de gastos
+const EXP_VIEW_KEY = 'restaurapp.expview';
+const getExpView = () => { try { return localStorage.getItem(EXP_VIEW_KEY) || 'cards'; } catch { return 'cards'; } };
+const setExpView = (v) => { try { localStorage.setItem(EXP_VIEW_KEY, v); } catch {} };
 export async function renderGastos(host) {
   host.innerHTML = `
     <div class="view-head"><h1>Gastos</h1>
@@ -451,19 +455,11 @@ async function renderGenerales(host) {
       <input type="file" accept=".csv,text/csv" id="csv-file" hidden />
     </div>
     <p class="help">Gastos del día a día (no atados a un evento). Cargá manual, por foto (la IA lee la factura), o importá un CSV.</p>
-    ${!items.length ? '<div class="panel"><div class="empty">Sin gastos cargados.</div></div>'
-    : `<div class="list">${items.map((x) => {
-      const prod = x.items?.[0]?.desc || x.vendor || 'Gasto';
-      const sub = [x.vendor && x.items?.[0]?.desc ? esc(x.vendor) : '', x.note ? esc(x.note) : '', esc(CAT_ES[x.category] || x.category || 'Otros'), new Date(x.date).toLocaleDateString('es-AR')].filter(Boolean).join(' · ');
-      return `<div class="list-item">
-        <div class="li-main">
-          <div class="li-title">${esc(prod)} ${x.ocrStatus === 'review' ? '<span class="badge badge-warn">Revisar (OCR)</span>' : ''}</div>
-          <div class="li-sub">${sub}</div>
-        </div>
-        <div class="li-amt">${money.format(x.total)}</div>
-        <div class="li-actions"><button class="btn btn-sm" data-edit="${x._id}">Editar</button><button class="btn btn-sm btn-danger" data-del="${x._id}">Eliminar</button></div>
-      </div>`;
-    }).join('')}</div>`}`;
+    <div class="seg" style="margin-bottom:10px">
+      <button class="seg-btn" data-view="cards">▤ Tarjetas</button>
+      <button class="seg-btn" data-view="table">▦ Tabla</button>
+    </div>
+    <div id="genlist"></div>`;
 
   host.querySelector('#add').addEventListener('click', openForm);
   const fileInput = host.querySelector('#ocr-file');
@@ -498,10 +494,67 @@ async function renderGenerales(host) {
     }
     toast(`${ok} gastos importados`, 'success'); reload();
   });
-  host.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(items.find((x) => x._id === b.dataset.edit))));
-  host.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
-    if (await confirmDialog('¿Eliminar este gasto?')) { await expensesApi.remove(b.dataset.del); toast('Gasto eliminado', 'success'); reload(); }
-  }));
+
+  // Vista (tarjetas / tabla) + orden por columna
+  const prodOf = (x) => x.items?.[0]?.desc || x.vendor || 'Gasto';
+  const fmtDay = (d) => new Date(d).toLocaleDateString('es-AR');
+  const sortedItems = () => {
+    const { field: f, dir } = _expSort;
+    return [...items].sort((a, b) => {
+      let va; let vb;
+      if (f === 'total') { va = a.total || 0; vb = b.total || 0; }
+      else if (f === 'product') { va = prodOf(a).toLowerCase(); vb = prodOf(b).toLowerCase(); }
+      else if (f === 'vendor') { va = (a.vendor || '').toLowerCase(); vb = (b.vendor || '').toLowerCase(); }
+      else { va = new Date(a.date).getTime(); vb = new Date(b.date).getTime(); }
+      return va < vb ? -dir : va > vb ? dir : 0;
+    });
+  };
+  function paint() {
+    const view = getExpView();
+    host.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === view));
+    const box = host.querySelector('#genlist');
+    const list = sortedItems();
+    if (!list.length) { box.innerHTML = '<div class="panel"><div class="empty">Sin gastos cargados.</div></div>'; return; }
+    if (view === 'table') {
+      const arr = (f) => (_expSort.field === f ? (_expSort.dir < 0 ? ' ▾' : ' ▴') : '');
+      box.innerHTML = `<div class="xls-wrap"><table class="xls">
+        <thead><tr>
+          <th data-sort="date">Día${arr('date')}</th>
+          <th data-sort="product">Producto${arr('product')}</th>
+          <th data-sort="vendor">Proveedor${arr('vendor')}</th>
+          <th>Cantidad</th>
+          <th data-sort="total" class="num">Precio${arr('total')}</th>
+          <th>Categoría</th>
+          <th></th>
+        </tr></thead>
+        <tbody>${list.map((x) => `<tr>
+          <td>${fmtDay(x.date)}</td>
+          <td>${esc(prodOf(x))} ${x.ocrStatus === 'review' ? '<span class="badge badge-warn">OCR</span>' : ''}</td>
+          <td>${esc(x.vendor || '')}</td>
+          <td>${esc(x.note || '')}</td>
+          <td class="num">${money.format(x.total)}</td>
+          <td>${esc(CAT_ES[x.category] || x.category || 'Otros')}</td>
+          <td class="xls-act"><button class="btn btn-sm" data-edit="${x._id}" title="Editar">✎</button><button class="btn btn-sm btn-danger" data-del="${x._id}" title="Eliminar">✕</button></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+    } else {
+      box.innerHTML = `<div class="list">${list.map((x) => {
+        const sub = [x.vendor && x.items?.[0]?.desc ? esc(x.vendor) : '', x.note ? esc(x.note) : '', esc(CAT_ES[x.category] || x.category || 'Otros'), fmtDay(x.date)].filter(Boolean).join(' · ');
+        return `<div class="list-item"><div class="li-main"><div class="li-title">${esc(prodOf(x))} ${x.ocrStatus === 'review' ? '<span class="badge badge-warn">Revisar (OCR)</span>' : ''}</div><div class="li-sub">${sub}</div></div><div class="li-amt">${money.format(x.total)}</div><div class="li-actions"><button class="btn btn-sm" data-edit="${x._id}">Editar</button><button class="btn btn-sm btn-danger" data-del="${x._id}">Eliminar</button></div></div>`;
+      }).join('')}</div>`;
+    }
+    box.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => openForm(items.find((x) => x._id === b.dataset.edit))));
+    box.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
+      if (await confirmDialog('¿Eliminar este gasto?')) { await expensesApi.remove(b.dataset.del); toast('Gasto eliminado', 'success'); reload(); }
+    }));
+    box.querySelectorAll('th[data-sort]').forEach((th) => th.addEventListener('click', () => {
+      const f = th.dataset.sort;
+      if (_expSort.field === f) _expSort.dir *= -1; else _expSort = { field: f, dir: f === 'date' ? -1 : 1 };
+      paint();
+    }));
+  }
+  host.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => { setExpView(b.dataset.view); paint(); }));
+  paint();
 }
 
 /* ---------- Gastos por evento ---------- */
