@@ -1,6 +1,6 @@
 import { applyTheme, getTheme, renderThemePicker, setThemeChangeHandler } from './themes.js';
-import { login, register, getAuthConfig, logout, isAuthed, tenantApi, me } from './api.js';
-import { renderResumen, renderMenu, renderPedidos, renderGastos, renderCampanias, renderAjustes, renderAdmin } from './views.js';
+import { login, register, getAuthConfig, logout, isAuthed, tenantApi, me, messagesApi } from './api.js';
+import { renderResumen, renderMenu, renderPedidos, renderGastos, renderCampanias, renderAjustes, renderAdmin, renderMensajes } from './views.js';
 import { clearTimers, esc } from './ui.js';
 
 const root = document.getElementById('root');
@@ -14,6 +14,7 @@ const ICONS = {
   campanias: I('<path d="M3 10v4h3l8 4V6L6 10H3z"/><path d="M17 9a3 3 0 0 1 0 6"/>'),
   ajustes: I('<circle cx="12" cy="12" r="3"/><path d="M20 12a8 8 0 0 0-.13-1.4l2-1.5-2-3.5-2.3 1a8 8 0 0 0-2.4-1.4L14.8 2h-4l-.4 2.8a8 8 0 0 0-2.4 1.4l-2.3-1-2 3.5 2 1.5A8 8 0 0 0 4 12c0 .47.05.94.13 1.4l-2 1.5 2 3.5 2.3-1a8 8 0 0 0 2.4 1.4l.4 2.8h4l.4-2.8a8 8 0 0 0 2.4-1.4l2.3 1 2-3.5-2-1.5c.08-.46.13-.93.13-1.4z"/>'),
   admin: I('<path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/>'),
+  mensajes: I('<path d="M21 11.5a8.5 8.5 0 0 1-12.5 7.5L3 21l2-5.5A8.5 8.5 0 1 1 21 11.5z"/>'),
 };
 const NAV = [
   { id: 'resumen', label: 'Resumen', view: renderResumen },
@@ -21,6 +22,7 @@ const NAV = [
   { id: 'pedidos', label: 'Pedidos', view: renderPedidos },
   { id: 'gastos', label: 'Gastos', view: renderGastos },
   { id: 'campanias', label: 'Campañas', view: renderCampanias },
+  { id: 'mensajes', label: 'Mensajes', view: renderMensajes },
   { id: 'ajustes', label: 'Ajustes', view: renderAjustes },
 ];
 const ADMIN_NAV = { id: 'admin', label: 'Admin', view: renderAdmin };
@@ -108,7 +110,19 @@ function start() {
   if (!isAuthed()) { renderLogin(); return; }
   renderApp();
   detectRoot(); // asíncrono: si la cuenta es root, agrega la pestaña Admin
+  startMsgPoll(); // badge de mensajes sin leer
 }
+
+// Badge de "Mensajes" sin leer (chat con el equipo de la app).
+let _msgPollStarted = false;
+async function pollMensajes() {
+  if (!isAuthed()) return;
+  try {
+    const { unread } = await messagesApi.unread();
+    document.querySelectorAll('[data-nav="mensajes"]').forEach((a) => a.classList.toggle('has-unread', unread > 0));
+  } catch {}
+}
+function startMsgPoll() { if (_msgPollStarted) return; _msgPollStarted = true; pollMensajes(); setInterval(pollMensajes, 60000); }
 
 // Detecta root (pestaña Admin) y marca blanca (logo propio en el topbar); re-renderiza si aplica.
 async function detectRoot() {
@@ -164,6 +178,7 @@ function onRoute() {
   document.querySelectorAll('[data-nav]').forEach((a) => a.setAttribute('aria-current', a.dataset.nav === id ? 'page' : 'false'));
   const entry = navItems().find((n) => n.id === id);
   entry.view(document.getElementById('view'));
+  if (_msgPollStarted) pollMensajes(); // refresca el badge (al salir de Mensajes se limpia)
 }
 
 /* ---------- Login ---------- */

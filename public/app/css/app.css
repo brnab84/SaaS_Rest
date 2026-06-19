@@ -137,6 +137,20 @@ button { font-family: var(--font); cursor: pointer; }
 .brand-logo { height: 26px; width: 26px; border-radius: 6px; object-fit: cover; }
 .brand-name { font-weight: 800; }
 .cover-adjust { width: 100%; height: 150px; border-radius: var(--radius); background-size: cover; background-repeat: no-repeat; border: var(--border-w) var(--border-style) var(--border-color); }
+/* Badge de mensajes sin leer en la navegación */
+[data-nav].has-unread .nav-lbl::after { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); margin-left: 6px; vertical-align: middle; }
+/* Chat (Mensajes) */
+.chat { background: var(--surface); border: var(--border-w) var(--border-style) var(--border-color); border-radius: var(--radius); padding: 14px; min-height: 280px; max-height: 56vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.bubble { max-width: 80%; padding: 9px 12px; border-radius: 14px; font-size: 14px; line-height: 1.4; }
+.bubble .b-text { white-space: pre-wrap; word-break: break-word; }
+.bubble .b-meta { font-size: 10px; opacity: .65; margin-top: 4px; }
+.bubble.them { align-self: flex-start; background: var(--surface-2); border: var(--border-w) var(--border-style) var(--border-color); }
+.bubble.mine { align-self: flex-end; background: var(--accent); color: #fff; }
+.chat-box { display: flex; gap: 8px; margin-top: 10px; }
+.chat-box .input { flex: 1; }
+.chat-modal { display: flex; flex-direction: column; max-height: 80vh; }
+.chat-modal .chat { border: none; border-radius: 0; flex: 1; }
+.chat-modal .chat-box { margin: 0; padding: 12px 16px; border-top: var(--border-w) var(--border-style) var(--border-color); }
 .help strong { color: var(--text); font-weight: 700; }
 .app-version { text-align: center; font-size: 11px; color: var(--text-muted); padding: 18px 0; font-family: var(--font-mono); letter-spacing: 0.03em; }
 

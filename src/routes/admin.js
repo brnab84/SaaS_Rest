@@ -9,6 +9,7 @@ import { Product } from '../models/Product.js';
 import { Order } from '../models/Order.js';
 import { Expense } from '../models/Expense.js';
 import { Campaign } from '../models/Campaign.js';
+import { Message } from '../models/Message.js';
 import { PlanConfig } from '../models/PlanConfig.js';
 import { allPlans, getPlan, refreshPlans, PLAN_IDS } from '../config/plans.js';
 import { notFound, badRequest } from '../utils/errors.js';
@@ -20,13 +21,15 @@ router.use(requireAuth, requireRoot);
 router.get('/overview', async (req, res, next) => {
   try {
     const tenants = await Tenant.find().select('name slug plan createdAt').sort({ createdAt: -1 }).lean();
-    const [prodCounts, orderCounts, owners] = await Promise.all([
+    const [prodCounts, orderCounts, owners, unreadCounts] = await Promise.all([
       Product.aggregate([{ $group: { _id: '$tenantId', n: { $sum: 1 } } }]),
       Order.aggregate([{ $group: { _id: '$tenantId', n: { $sum: 1 }, revenue: { $sum: { $cond: [{ $eq: ['$payment.status', 'paid'] }, '$total', 0] } } } }]),
       User.find({ role: 'owner' }).select('tenantId email').lean(),
+      Message.aggregate([{ $match: { from: 'tenant', read: false } }, { $group: { _id: '$tenantId', n: { $sum: 1 } } }]),
     ]);
     const pById = Object.fromEntries(prodCounts.map((x) => [String(x._id), x.n]));
     const oById = Object.fromEntries(orderCounts.map((x) => [String(x._id), x]));
+    const uById = Object.fromEntries(unreadCounts.map((x) => [String(x._id), x.n]));
     const eById = {};
     for (const u of owners) if (!eById[String(u.tenantId)]) eById[String(u.tenantId)] = u.email;
 
@@ -40,6 +43,7 @@ router.get('/overview', async (req, res, next) => {
       products: pById[String(t._id)] || 0,
       orders: oById[String(t._id)]?.n || 0,
       revenue: oById[String(t._id)]?.revenue || 0,
+      unread: uById[String(t._id)] || 0,
     }));
 
     const byPlan = { free: 0, pro: 0, business: 0 };
@@ -146,6 +150,24 @@ router.delete('/tenants/:id', async (req, res, next) => {
     ]);
     await Tenant.deleteOne({ _id: tid });
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// Chat con un comercio: hilo (marca leídos los del comercio) y envío (from root).
+router.get('/messages/:id', async (req, res, next) => {
+  try {
+    await Message.updateMany({ tenantId: req.params.id, from: 'tenant', read: false }, { $set: { read: true } });
+    const messages = await Message.find({ tenantId: req.params.id }).sort({ createdAt: 1 }).limit(200);
+    res.json(messages);
+  } catch (e) { next(e); }
+});
+const msgSchema = z.object({ text: z.string().min(1).max(2000) });
+router.post('/messages/:id', validate(msgSchema), async (req, res, next) => {
+  try {
+    const t = await Tenant.findById(req.params.id).select('_id');
+    if (!t) return next(notFound('Comercio no encontrado'));
+    const m = await Message.create({ tenantId: req.params.id, from: 'root', text: req.body.text });
+    res.status(201).json(m);
   } catch (e) { next(e); }
 });
 

@@ -86,6 +86,15 @@ export const adminApi = {
   tenantDetail: (id) => request(`/admin/tenants/${id}`),
   setPlanConfig: (id, body) => request(`/admin/plans/${id}`, { method: 'PATCH', body }),
   deleteTenant: (id) => request(`/admin/tenants/${id}`, { method: 'DELETE' }),
+  messages: (id) => request(`/admin/messages/${id}`),
+  sendMessage: (id, text) => request(`/admin/messages/${id}`, { method: 'POST', body: { text } }),
+};
+
+// Chat del comercio con el equipo de la app.
+export const messagesApi = {
+  list: () => request('/messages'),
+  unread: () => request('/messages/unread'),
+  send: (text) => request('/messages', { method: 'POST', body: { text } }),
 };
 
 export const ordersApi = {

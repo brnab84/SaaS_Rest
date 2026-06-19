@@ -1,4 +1,4 @@
-import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto, importProductsFromWhatsApp, ordersStreamUrl, adminApi, getToken } from './api.js';
+import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto, importProductsFromWhatsApp, ordersStreamUrl, adminApi, getToken, messagesApi } from './api.js';
 import { money, num, esc, formModal, confirmDialog, infoModal, toast, onInterval, clearTimers, onCleanup, playPing, pushNotify, requestNotifyPermission, soundEnabled, setSoundEnabled, getTone, setTone, getAlarmLevel, setAlarmLevel, getComanda, setComanda, printComanda, connectThermal, testComanda } from './ui.js';
 import { renderThemePicker } from './themes.js';
 
@@ -1070,6 +1070,7 @@ export async function renderAdmin(host) {
           <div class="li-sub">Alta ${new Date(t.createdAt).toLocaleDateString('es-AR')}</div>
         </div>
         <div class="li-actions">
+          <button class="btn btn-sm ${t.unread ? 'btn-accent' : ''}" data-chat="${t.id}" data-name="${esc(t.name)}">💬${t.unread ? ` ${t.unread}` : ''}</button>
           <button class="btn btn-sm" data-tenant="${t.id}">Detalle</button>
           <a class="btn btn-sm" href="${location.origin}/r/${esc(t.slug)}" target="_blank" rel="noopener">Landing ↗</a>
           <select class="input" data-plan-for="${t.id}" style="width:auto;min-height:38px;padding:6px 10px">
@@ -1098,6 +1099,7 @@ export async function renderAdmin(host) {
     catch (ex) { toast(ex.message || 'No se pudo guardar el plan', 'error'); }
   }));
 
+  host.querySelectorAll('[data-chat]').forEach((b) => b.addEventListener('click', () => openTenantChat(b.dataset.chat, b.dataset.name)));
   host.querySelectorAll('[data-del-tenant]').forEach((b) => b.addEventListener('click', async () => {
     const name = b.dataset.name || 'este comercio';
     if (!(await confirmDialog(`¿Eliminar "${name}" y TODOS sus datos (menú, pedidos, gastos, usuarios)? Esta acción es irreversible.`))) return;
@@ -1128,4 +1130,78 @@ export async function renderAdmin(host) {
         ${statusRows}`,
     });
   }));
+}
+
+/* ===================== MENSAJES (chat comercio ↔ dueño de la app) ===================== */
+function chatThreadHTML(msgs, mineFrom) {
+  if (!msgs.length) return '<div class="empty">Todavía no hay mensajes. Escribí el primero.</div>';
+  return msgs.map((m) => {
+    const mine = m.from === mineFrom;
+    const who = m.from === 'root' ? 'RestaurApp' : 'Comercio';
+    const when = new Date(m.createdAt).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return `<div class="bubble ${mine ? 'mine' : 'them'}"><div class="b-text">${esc(m.text)}</div><div class="b-meta">${mine ? '' : `${who} · `}${when}</div></div>`;
+  }).join('');
+}
+
+// Vista del comercio: chat con el equipo de la app.
+export async function renderMensajes(host) {
+  loading(host);
+  let msgs;
+  try { msgs = await messagesApi.list(); } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  host.innerHTML = `
+    <div class="view-head"><h1>Mensajes</h1></div>
+    <p class="help">Chat directo con el equipo de RestaurApp. Escribinos consultas, problemas o sugerencias.</p>
+    <div class="chat" id="chat">${chatThreadHTML(msgs, 'tenant')}</div>
+    <form class="chat-box" id="chat-form"><input class="input" id="chat-in" placeholder="Escribí un mensaje…" autocomplete="off" maxlength="2000" /><button class="btn btn-accent" type="submit">Enviar</button></form>`;
+  const chat = host.querySelector('#chat'); chat.scrollTop = chat.scrollHeight;
+  const input = host.querySelector('#chat-in');
+  host.querySelector('#chat-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = input.value.trim(); if (!text) return;
+    input.value = '';
+    try { await messagesApi.send(text); const m = await messagesApi.list(); chat.innerHTML = chatThreadHTML(m, 'tenant'); chat.scrollTop = chat.scrollHeight; }
+    catch (ex) { toast(ex.message || 'No se pudo enviar', 'error'); input.value = text; }
+  });
+  onInterval(async () => {
+    if (document.visibilityState !== 'visible' || !document.body.contains(chat)) return;
+    try {
+      const m = await messagesApi.list();
+      const atBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 40;
+      chat.innerHTML = chatThreadHTML(m, 'tenant');
+      if (atBottom) chat.scrollTop = chat.scrollHeight;
+    } catch {}
+  }, 15000);
+}
+
+// Modal de chat del root con un comercio.
+function openTenantChat(id, name) {
+  const ov = document.createElement('div'); ov.className = 'modal-overlay show';
+  ov.innerHTML = `<div class="modal chat-modal">
+    <div class="modal-head"><h3>Chat · ${esc(name || '')}</h3><button class="modal-x" data-x aria-label="Cerrar">✕</button></div>
+    <div class="chat" id="achat"></div>
+    <form class="chat-box" id="achat-form"><input class="input" id="achat-in" placeholder="Escribí un mensaje…" autocomplete="off" maxlength="2000" /><button class="btn btn-accent" type="submit">Enviar</button></form>
+  </div>`;
+  document.body.appendChild(ov);
+  const chat = ov.querySelector('#achat'); const input = ov.querySelector('#achat-in');
+  let timer = null;
+  const close = () => { ov.remove(); if (timer) clearInterval(timer); };
+  ov.querySelector('[data-x]').onclick = close;
+  ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+  const refresh = async () => {
+    try {
+      const m = await adminApi.messages(id);
+      const atBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 40;
+      chat.innerHTML = chatThreadHTML(m, 'root');
+      if (atBottom) chat.scrollTop = chat.scrollHeight;
+    } catch {}
+  };
+  ov.querySelector('#achat-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const t = input.value.trim(); if (!t) return;
+    input.value = '';
+    try { await adminApi.sendMessage(id, t); await refresh(); }
+    catch (ex) { toast(ex.message || 'No se pudo enviar', 'error'); input.value = t; }
+  });
+  refresh().then(() => { chat.scrollTop = chat.scrollHeight; });
+  timer = setInterval(refresh, 15000);
 }
