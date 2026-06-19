@@ -3,6 +3,7 @@ import { Schema, model } from 'mongoose';
 const expenseSchema = new Schema({
   tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
   eventId: { type: Schema.Types.ObjectId, ref: 'Event', default: null, index: true }, // gasto de un evento (null = general)
+  sheetId: { type: Schema.Types.ObjectId, ref: 'ExpenseSheet', default: null, index: true }, // hoja/pestaña (null = "General")
   vendor: String,
   note: String, // cantidad/observación (ej. "0,8kg", "4 bandejas")
   date: { type: Date, default: Date.now },

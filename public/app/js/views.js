@@ -1,4 +1,4 @@
-import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto, importProductsFromWhatsApp, ordersStreamUrl, adminApi, getToken, messagesApi, eventsApi, eventItemsFromPhoto } from './api.js';
+import { api, me, tenantApi, productsApi, ordersApi, expensesApi, expenseSheetsApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto, importProductsFromWhatsApp, ordersStreamUrl, adminApi, getToken, messagesApi, eventsApi, eventItemsFromPhoto } from './api.js';
 import { money, num, esc, formModal, confirmDialog, infoModal, toast, onInterval, clearTimers, onCleanup, playPing, pushNotify, requestNotifyPermission, soundEnabled, setSoundEnabled, getTone, setTone, getAlarmLevel, setAlarmLevel, getComanda, setComanda, printComanda, connectThermal, testComanda } from './ui.js';
 import { renderThemePicker } from './themes.js';
 
@@ -394,6 +394,9 @@ let _expSort = { field: 'date', dir: -1 }; // orden de la tabla de gastos
 const EXP_VIEW_KEY = 'restaurapp.expview';
 const getExpView = () => { try { return localStorage.getItem(EXP_VIEW_KEY) || 'cards'; } catch { return 'cards'; } };
 const setExpView = (v) => { try { localStorage.setItem(EXP_VIEW_KEY, v); } catch {} };
+const EXP_SHEET_KEY = 'restaurapp.expsheet'; // hoja/pestaña activa de gastos ('general' o un id)
+const getExpSheet = () => { try { return localStorage.getItem(EXP_SHEET_KEY) || 'general'; } catch { return 'general'; } };
+const setExpSheet = (v) => { try { localStorage.setItem(EXP_SHEET_KEY, v); } catch {} };
 export async function renderGastos(host) {
   host.innerHTML = `
     <div class="view-head"><h1>Gastos</h1>
@@ -410,9 +413,18 @@ export async function renderGastos(host) {
 
 async function renderGenerales(host) {
   host.innerHTML = '<div class="spinner">Cargando…</div>';
-  let items;
-  try { items = await expensesApi.list(); } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  let items; let sheets = [];
+  const active = getExpSheet(); // hoja/pestaña activa ('general' o un id)
+  try {
+    [items, sheets] = await Promise.all([
+      expensesApi.list(`?sheet=${active}`),
+      expenseSheetsApi.list(),
+    ]);
+  } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  // si la hoja activa se borró en otro lado, volver a General
+  if (active !== 'general' && !sheets.some((s) => s._id === active)) { setExpSheet('general'); renderGenerales(host); return; }
   const reload = () => renderGenerales(host);
+  const sheetIdForNew = () => (active === 'general' ? undefined : active); // hoja donde caen los gastos nuevos
 
   const openForm = (x) => formModal({
     title: x ? 'Editar gasto' : 'Cargar gasto',
@@ -440,7 +452,7 @@ async function renderGenerales(host) {
       if (x) {
         if (x.ocrStatus === 'review') body.ocrStatus = 'done'; // editar confirma el OCR
         await expensesApi.update(x._id, body); toast('Gasto actualizado', 'success');
-      } else { await expensesApi.create(body); toast('Gasto cargado', 'success'); }
+      } else { await expensesApi.create({ ...body, sheetId: sheetIdForNew() }); toast('Gasto cargado', 'success'); }
       reload();
     },
   });
@@ -454,12 +466,46 @@ async function renderGenerales(host) {
       <input type="file" accept="image/*" id="ocr-file" hidden />
       <input type="file" accept=".csv,text/csv" id="csv-file" hidden />
     </div>
-    <p class="help">Gastos del día a día (no atados a un evento). Cargá manual, por foto (la IA lee la factura), o importá un CSV.</p>
+    <p class="help">Gastos del día a día (no atados a un evento). Agrupalos en hojas (pestañas), como en Excel. Cargá manual, por foto, o importá un CSV.</p>
+    <div class="sheet-tabs">
+      <button class="sheet-tab${active === 'general' ? ' on' : ''}" data-sheet="general">General</button>
+      ${sheets.map((s) => `<button class="sheet-tab${active === s._id ? ' on' : ''}" data-sheet="${s._id}" title="Doble clic para renombrar">${esc(s.name)}<span class="sheet-x" data-delsheet="${s._id}" title="Eliminar hoja">✕</span></button>`).join('')}
+      <button class="sheet-add" id="sheet-add" title="Nueva hoja">＋ hoja</button>
+    </div>
     <div class="seg" style="margin-bottom:10px">
       <button class="seg-btn" data-view="cards">▤ Tarjetas</button>
       <button class="seg-btn" data-view="table">▦ Planilla (Excel)</button>
     </div>
     <div id="genlist"></div>`;
+
+  // Pestañas (hojas): cambiar, crear, renombrar, eliminar
+  host.querySelectorAll('.sheet-tab').forEach((b) => {
+    b.addEventListener('click', (ev) => {
+      if (ev.target.closest('.sheet-x')) return; // el ✕ se maneja aparte
+      setExpSheet(b.dataset.sheet); reload();
+    });
+    if (b.dataset.sheet !== 'general') {
+      b.addEventListener('dblclick', async () => {
+        const name = window.prompt('Nombre de la hoja:', b.textContent.replace('✕', '').trim());
+        if (name && name.trim()) { await expenseSheetsApi.update(b.dataset.sheet, { name: name.trim() }); toast('Hoja renombrada', 'success'); reload(); }
+      });
+    }
+  });
+  host.querySelectorAll('[data-delsheet]').forEach((x) => x.addEventListener('click', async (ev) => {
+    ev.stopPropagation();
+    if (await confirmDialog('¿Eliminar esta hoja? Los gastos no se borran: vuelven a "General".')) {
+      await expenseSheetsApi.remove(x.dataset.delsheet);
+      if (active === x.dataset.delsheet) setExpSheet('general');
+      toast('Hoja eliminada', 'success'); reload();
+    }
+  }));
+  host.querySelector('#sheet-add').addEventListener('click', async () => {
+    const name = window.prompt('Nombre de la nueva hoja (ej. Insumos, Catering, Junio):');
+    if (name && name.trim()) {
+      const s = await expenseSheetsApi.create(name.trim());
+      setExpSheet(s._id); toast('Hoja creada', 'success'); reload();
+    }
+  });
 
   host.querySelector('#add').addEventListener('click', openForm);
   const fileInput = host.querySelector('#ocr-file');
@@ -487,6 +533,7 @@ async function renderGenerales(host) {
           total: r.total,
           category: EXP_VALID.has(r.category) ? r.category : undefined,
           date: r.date || undefined,
+          sheetId: sheetIdForNew(),
           items: r.product ? [{ desc: r.product, amount: r.total }] : undefined,
         });
         ok += 1;
@@ -589,7 +636,7 @@ async function renderGenerales(host) {
           const up = await expensesApi.update(id, body);
           const x = items.find((e) => e._id === id); if (x) Object.assign(x, up);
         } else {
-          const created = await expensesApi.create(body);
+          const created = await expensesApi.create({ ...body, sheetId: sheetIdForNew() });
           items.push(created);
           syncing = true; grid.setValueFromCoords(0, y, created._id, true); syncing = false;
         }
@@ -688,7 +735,7 @@ async function renderGenerales(host) {
         if (!toSave.length) { toast('Cargá al menos una fila con precio', 'error'); return; }
         toast(`Guardando ${toSave.length}…`, 'info');
         try {
-          await expensesApi.bulk(toSave.map((r) => ({ product: r.product || undefined, vendor: r.vendor || undefined, note: r.note || undefined, total: Number(r.total), category: EXP_VALID.has(r.category) ? r.category : 'supplies', date: r.date || undefined })));
+          await expensesApi.bulk(toSave.map((r) => ({ product: r.product || undefined, vendor: r.vendor || undefined, note: r.note || undefined, total: Number(r.total), category: EXP_VALID.has(r.category) ? r.category : 'supplies', date: r.date || undefined })), sheetIdForNew());
           toast(`${toSave.length} gastos guardados`, 'success');
           newRows = []; reload();
         } catch (e) { toast(e.message || 'No se pudo guardar', 'error'); }

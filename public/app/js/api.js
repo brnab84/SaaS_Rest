@@ -104,11 +104,19 @@ export const ordersApi = {
 };
 
 export const expensesApi = {
-  list: () => request('/expenses'),
+  list: (q = '') => request(`/expenses${q}`),
   create: (b) => request('/expenses', { method: 'POST', body: b }),
-  bulk: (items) => request('/expenses/bulk', { method: 'POST', body: { items } }),
+  bulk: (items, sheetId) => request('/expenses/bulk', { method: 'POST', body: { items, sheetId } }),
   update: (id, b) => request(`/expenses/${id}`, { method: 'PATCH', body: b }),
   remove: (id) => request(`/expenses/${id}`, { method: 'DELETE' }),
+};
+
+// Hojas (pestañas) para agrupar gastos generales. La "General" es implícita (no está acá).
+export const expenseSheetsApi = {
+  list: () => request('/expense-sheets'),
+  create: (name) => request('/expense-sheets', { method: 'POST', body: { name } }),
+  update: (id, b) => request(`/expense-sheets/${id}`, { method: 'PATCH', body: b }),
+  remove: (id) => request(`/expense-sheets/${id}`, { method: 'DELETE' }),
 };
 
 export const eventsApi = {

@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.js';
 import orderRoutes from './routes/orders.js';
 import productRoutes from './routes/products.js';
 import expenseRoutes from './routes/expenses.js';
+import expenseSheetRoutes from './routes/expenseSheets.js';
 import campaignRoutes from './routes/campaigns.js';
 import dashboardRoutes from './routes/dashboard.js';
 import eventRoutes from './routes/events.js';
@@ -65,6 +66,7 @@ export function createApp() {
   app.use('/api/orders', apiLimiter, orderRoutes);
   app.use('/api/products', apiLimiter, productRoutes);
   app.use('/api/expenses', apiLimiter, expenseRoutes);
+  app.use('/api/expense-sheets', apiLimiter, expenseSheetRoutes);
   app.use('/api/campaigns', apiLimiter, campaignRoutes);
   app.use('/api/dashboard', apiLimiter, dashboardRoutes);
   app.use('/api/events', apiLimiter, eventRoutes);

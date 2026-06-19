@@ -48,6 +48,15 @@ test('panel: la planilla Excel guarda al editar una celda', async ({ page }) => 
   await expect(page.locator('.jexcel td[data-x="2"][data-y="0"]')).toHaveText('Harina editada QA', { timeout: 10000 });
 });
 
+test('panel: gastos en hojas (pestañas)', async ({ page }) => {
+  await login(page, 'qa@test.local');
+  await page.locator('.tab[data-nav="gastos"]').click();
+  await expect(page.locator('.sheet-tab[data-sheet="general"]')).toBeVisible();
+  page.once('dialog', (d) => d.accept('Insumos QA')); // prompt del nombre de la hoja
+  await page.click('#sheet-add');
+  await expect(page.locator('.sheet-tab', { hasText: 'Insumos QA' })).toBeVisible({ timeout: 10000 });
+});
+
 test('panel: la cuenta root ve la pestaña Admin y abre el panel', async ({ page }) => {
   await login(page, 'root@test.local');
   await expect(page.locator('.user-email')).toHaveText('root@test.local', { timeout: 10000 });

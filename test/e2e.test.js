@@ -155,6 +155,22 @@ test('gastos: carga masiva (bulk) tipo planilla', async () => {
   assert.ok(harina && harina.vendor === 'jumbo' && harina.note === '1kg');
 });
 
+test('gastos: hojas (pestañas) agrupan y al borrar vuelven a General', async () => {
+  const c = await api('/api/expense-sheets', { method: 'POST', token: state.token, body: { name: 'Insumos' } });
+  assert.equal(c.status, 201);
+  const sheetId = (await c.json())._id;
+  const e = await api('/api/expenses', { method: 'POST', token: state.token, body: { total: 500, sheetId, items: [{ desc: 'Sal gruesa', amount: 500 }] } });
+  assert.equal(e.status, 201);
+  const inSheet = await (await api(`/api/expenses?sheet=${sheetId}`, { token: state.token })).json();
+  assert.ok(inSheet.some((g) => g.items?.[0]?.desc === 'Sal gruesa'), 'el gasto debe estar en su hoja');
+  const general = await (await api('/api/expenses?sheet=general', { token: state.token })).json();
+  assert.ok(general.every((g) => g.items?.[0]?.desc !== 'Sal gruesa'), 'no debe aparecer en General');
+  const d = await api(`/api/expense-sheets/${sheetId}`, { method: 'DELETE', token: state.token });
+  assert.equal(d.status, 204);
+  const generalAfter = await (await api('/api/expenses?sheet=general', { token: state.token })).json();
+  assert.ok(generalAfter.some((g) => g.items?.[0]?.desc === 'Sal gruesa'), 'al borrar la hoja, el gasto vuelve a General');
+});
+
 test('chat comercio ↔ root', async () => {
   const s = await api('/api/messages', { method: 'POST', token: state.token, body: { text: 'Hola soporte' } });
   assert.equal(s.status, 201);

@@ -19,10 +19,13 @@ const upload = multer({
 
 const CATEGORIES = ['supplies', 'rent', 'salary', 'utilities', 'other'];
 
+const sheetField = z.string().optional().nullable(); // ObjectId de la hoja, o null/omitido = General
+
 const expenseSchema = z.object({
   vendor: z.string().optional(),
   note: z.string().max(160).optional(), // cantidad/observación
   date: z.coerce.date().optional(),
+  sheetId: sheetField,
   total: z.number().nonnegative(),
   currency: z.string().optional(),
   category: z.enum(CATEGORIES).optional(),
@@ -40,6 +43,8 @@ const expensePatchSchema = expenseSchema.partial();
 router.get('/', async (req, res, next) => {
   try {
     const filter = { tenantId: req.auth.tenantId, eventId: null }; // "Generales": sin evento
+    if (req.query.sheet === 'general') filter.sheetId = null; // hoja General (implícita)
+    else if (req.query.sheet) filter.sheetId = req.query.sheet; // hoja/pestaña puntual
     if (req.query.category) filter.category = req.query.category;
     if (req.query.from || req.query.to) {
       filter.date = {};
@@ -62,8 +67,10 @@ router.get('/:id', async (req, res, next) => {
 // Carga manual de gasto (la carga por foto/OCR vive en Fase 2: POST /api/expenses/ocr)
 router.post('/', requireRole('owner', 'admin'), validate(expenseSchema), async (req, res, next) => {
   try {
+    const sheetId = req.body.sheetId && req.body.sheetId !== 'general' ? req.body.sheetId : null;
     const expense = await Expense.create({
       ...req.body,
+      sheetId,
       tenantId: req.auth.tenantId,
       createdBy: req.auth.userId,
       ocrStatus: 'done', // carga manual = sin OCR pendiente
@@ -74,6 +81,7 @@ router.post('/', requireRole('owner', 'admin'), validate(expenseSchema), async (
 
 // Carga masiva tipo planilla: varias filas (producto/proveedor/cantidad/precio) en una sola pasada.
 const bulkSchema = z.object({
+  sheetId: sheetField, // hoja en la que caen todas las filas (null = General)
   items: z.array(z.object({
     product: z.string().max(160).optional(),
     vendor: z.string().max(80).optional(),
@@ -85,11 +93,13 @@ const bulkSchema = z.object({
 });
 router.post('/bulk', requireRole('owner', 'admin'), validate(bulkSchema), async (req, res, next) => {
   try {
+    const sheetId = req.body.sheetId && req.body.sheetId !== 'general' ? req.body.sheetId : null;
     const docs = req.body.items
       .filter((i) => Number.isFinite(i.total) && i.total > 0)
       .map((i) => ({
         tenantId: req.auth.tenantId,
         createdBy: req.auth.userId,
+        sheetId,
         vendor: i.vendor || undefined,
         note: i.note || undefined,
         total: i.total,

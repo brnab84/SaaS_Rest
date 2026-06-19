@@ -168,6 +168,15 @@ button { font-family: var(--font); cursor: pointer; }
 .xls tr.saved { background: color-mix(in srgb, #16a34a 22%, transparent) !important; transition: background .4s; }
 .xls-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 .xls-foot .help { flex: 1; min-width: 160px; margin: 0; }
+/* Pestañas (hojas) de gastos, estilo Excel */
+.sheet-tabs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin: 4px 0 10px; border-bottom: 2px solid var(--border-color); padding-bottom: 2px; }
+.sheet-tab { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--border-color); border-bottom: none; background: var(--surface-2); color: var(--muted); border-radius: 8px 8px 0 0; cursor: pointer; font: inherit; font-size: 13px; }
+.sheet-tab.on { background: var(--surface); color: var(--text); font-weight: 700; border-color: var(--accent); border-bottom: 2px solid var(--surface); margin-bottom: -2px; }
+.sheet-tab .sheet-x { opacity: 0; font-size: 11px; color: var(--muted); border-radius: 50%; padding: 0 4px; }
+.sheet-tab:hover .sheet-x { opacity: .7; }
+.sheet-tab .sheet-x:hover { opacity: 1; color: var(--danger, #e5484d); background: color-mix(in srgb, var(--danger, #e5484d) 18%, transparent); }
+.sheet-add { padding: 7px 10px; border: 1px dashed var(--border-color); background: transparent; color: var(--accent); border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px; }
+.sheet-add:hover { border-color: var(--accent); }
 /* Planilla Excel (Jspreadsheet CE) adaptada al tema de la app */
 .xls-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .xls-tools .help { flex: 1; min-width: 160px; margin: 0; }
