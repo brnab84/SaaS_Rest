@@ -423,6 +423,11 @@ async function renderGenerales(host) {
     ]);
   } catch (e) { host.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   const columns = tenant?.settings?.expenseColumns || []; // columnas propias [{key,label,type}]
+  // Resumen (sumarización) de la hoja activa: total, cantidad y desglose por categoría.
+  const total = items.reduce((a, x) => a + (Number(x.total) || 0), 0);
+  const byCat = {};
+  items.forEach((x) => { const k = x.category || 'other'; byCat[k] = (byCat[k] || 0) + (Number(x.total) || 0); });
+  const sheetName = active === 'general' ? 'General' : (sheets.find((s) => s._id === active)?.name || 'Hoja');
   // si la hoja activa se borró en otro lado, volver a General
   if (active !== 'general' && !sheets.some((s) => s._id === active)) { setExpSheet('general'); renderGenerales(host); return; }
   const reload = () => renderGenerales(host);
@@ -477,6 +482,10 @@ async function renderGenerales(host) {
     <div class="seg" style="margin-bottom:10px">
       <button class="seg-btn" data-view="cards">▤ Tarjetas</button>
       <button class="seg-btn" data-view="table">▦ Planilla (Excel)</button>
+    </div>
+    <div class="exp-summary">
+      <div class="sum-box"><span class="sum-lbl">Total · ${esc(sheetName)}</span><b class="sum-amt">${money.format(total)}</b><span class="sum-count">${items.length} gasto${items.length === 1 ? '' : 's'}</span></div>
+      <div class="sum-cats">${Object.entries(byCat).sort((a, b) => b[1] - a[1]).map(([k, v]) => `<span class="sum-cat">${esc(CAT_ES[k] || k)} <b>${money.format(v)}</b></span>`).join('')}</div>
     </div>
     <div id="genlist"></div>`;
 

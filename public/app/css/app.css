@@ -168,6 +168,15 @@ button { font-family: var(--font); cursor: pointer; }
 .xls tr.saved { background: color-mix(in srgb, #16a34a 22%, transparent) !important; transition: background .4s; }
 .xls-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 .xls-foot .help { flex: 1; min-width: 160px; margin: 0; }
+/* Resumen (sumarización) de gastos por hoja */
+.exp-summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 0 0 10px; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: var(--radius); background: var(--surface-2); }
+.exp-summary .sum-box { display: flex; align-items: baseline; gap: 10px; }
+.exp-summary .sum-lbl { color: var(--muted); font-size: 13px; }
+.exp-summary .sum-amt { font-size: 20px; font-family: var(--font-mono); }
+.exp-summary .sum-count { color: var(--muted); font-size: 12px; }
+.exp-summary .sum-cats { display: flex; gap: 6px; flex-wrap: wrap; }
+.exp-summary .sum-cat { font-size: 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--border-color); border-radius: 999px; padding: 3px 10px; }
+.exp-summary .sum-cat b { color: var(--text); font-family: var(--font-mono); }
 /* Pestañas (hojas) de gastos, estilo Excel */
 .sheet-tabs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin: 4px 0 10px; border-bottom: 2px solid var(--border-color); padding-bottom: 2px; }
 .sheet-tab { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--border-color); border-bottom: none; background: var(--surface-2); color: var(--muted); border-radius: 8px 8px 0 0; cursor: pointer; font: inherit; font-size: 13px; }

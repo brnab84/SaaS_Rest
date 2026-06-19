@@ -24,6 +24,7 @@ test('panel: comercio normal — todas las pestañas cargan sin error de consola
   await page.locator('.seg-btn[data-gt="eventos"]').click();
   await expect(page.locator('#new-ev')).toBeVisible();
   await page.locator('.seg-btn[data-gt="generales"]').click();
+  await expect(page.locator('.exp-summary .sum-amt')).toBeVisible(); // resumen (total) de la hoja
   await page.locator('.seg-btn[data-view="table"]').click();
   await expect(page.locator('.jexcel')).toBeVisible({ timeout: 10000 }); // planilla Excel (Jspreadsheet CE)
   await page.locator('.seg-btn[data-view="cards"]').click();
