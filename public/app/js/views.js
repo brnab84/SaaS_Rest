@@ -1,5 +1,5 @@
 import { api, me, tenantApi, productsApi, ordersApi, expensesApi, campaignsApi, uploadExpenseOcr, importProducts, uploadImage, productFromPhoto, importProductsFromWhatsApp, ordersStreamUrl, adminApi, getToken } from './api.js';
-import { money, num, esc, formModal, confirmDialog, infoModal, toast, onInterval, clearTimers, onCleanup, playPing, pushNotify, requestNotifyPermission, soundEnabled, setSoundEnabled, getTone, setTone, getComanda, setComanda, printComanda, connectThermal, testComanda } from './ui.js';
+import { money, num, esc, formModal, confirmDialog, infoModal, toast, onInterval, clearTimers, onCleanup, playPing, pushNotify, requestNotifyPermission, soundEnabled, setSoundEnabled, getTone, setTone, getAlarmLevel, setAlarmLevel, getComanda, setComanda, printComanda, connectThermal, testComanda } from './ui.js';
 import { renderThemePicker } from './themes.js';
 
 const CAT_ES = { supplies: 'Insumos', rent: 'Alquiler', salary: 'Sueldos', utilities: 'Servicios', other: 'Otros' };
@@ -638,8 +638,17 @@ export async function renderAjustes(host) {
       <h2>Notificaciones de pedidos</h2>
       <p class="muted" style="margin:0 0 12px">Cuando entra un pedido nuevo, la app suena y te avisa (tené la sección <strong>Pedidos</strong> abierta). Elegí el tono.</p>
       <label class="field-check"><input type="checkbox" id="snd-on" ${soundEnabled() ? 'checked' : ''}/> Sonido al recibir un pedido</label>
-      <div class="field" style="margin-top:10px"><label>Tono</label>
-        <select class="input" id="snd-tone">${Object.entries(TONE_LABELS).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div class="field" style="flex:1;min-width:130px;margin-top:10px"><label>Tono</label>
+          <select class="input" id="snd-tone">${Object.entries(TONE_LABELS).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+        </div>
+        <div class="field" style="flex:1;min-width:130px;margin-top:10px"><label>Intensidad de la alarma</label>
+          <select class="input" id="snd-level">
+            <option value="slow">Suave</option>
+            <option value="medium">Media</option>
+            <option value="strong">Fuerte (alta + repetida)</option>
+          </select>
+        </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
         <button class="btn btn-sm" id="snd-test">▶ Probar sonido</button>
@@ -778,6 +787,8 @@ export async function renderAjustes(host) {
 
   // Notificaciones de pedidos (preferencias por dispositivo)
   const sndTone = host.querySelector('#snd-tone'); if (sndTone) sndTone.value = getTone();
+  const sndLevel = host.querySelector('#snd-level'); if (sndLevel) sndLevel.value = getAlarmLevel();
+  sndLevel?.addEventListener('change', () => { setAlarmLevel(sndLevel.value); playPing(true); });
   host.querySelector('#snd-on')?.addEventListener('change', (e) => { setSoundEnabled(e.target.checked); toast(e.target.checked ? 'Sonido activado' : 'Sonido desactivado', 'success'); });
   sndTone?.addEventListener('change', () => { setTone(sndTone.value); playPing(true); });
   host.querySelector('#snd-test')?.addEventListener('click', () => playPing(true));

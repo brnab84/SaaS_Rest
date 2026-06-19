@@ -100,16 +100,25 @@ function fieldHTML(f, val) {
 /* ===== Notificaciones de pedidos (sonido + aviso del sistema) ===== */
 const SOUND_KEY = 'restaurapp.sound';   // 'on' | 'off' (default on)
 const TONE_KEY = 'restaurapp.tone';     // 'campana' | 'timbre' | 'arpa'
+const LEVEL_KEY = 'restaurapp.alarm';   // 'slow' | 'medium' | 'strong'
 export function soundEnabled() { try { return localStorage.getItem(SOUND_KEY) !== 'off'; } catch { return true; } }
 export function setSoundEnabled(on) { try { localStorage.setItem(SOUND_KEY, on ? 'on' : 'off'); } catch {} }
 export function getTone() { try { return localStorage.getItem(TONE_KEY) || 'campana'; } catch { return 'campana'; } }
 export function setTone(t) { try { localStorage.setItem(TONE_KEY, t); } catch {} }
+export function getAlarmLevel() { try { return localStorage.getItem(LEVEL_KEY) || 'medium'; } catch { return 'medium'; } }
+export function setAlarmLevel(l) { try { localStorage.setItem(LEVEL_KEY, l); } catch {} }
 
 // Secuencia de notas por tono (frecuencias en Hz).
 const TONES = {
   campana: [880, 1320],
   timbre: [1568, 1568],
   arpa: [659, 784, 988],
+};
+// Intensidad de la alarma: volumen, repeticiones de la secuencia y duración de cada nota.
+const LEVELS = {
+  slow: { vol: 0.12, reps: 1, dur: 0.30 },
+  medium: { vol: 0.30, reps: 2, dur: 0.34 },
+  strong: { vol: 0.6, reps: 4, dur: 0.42 },
 };
 
 let _audioCtx = null;
@@ -121,17 +130,23 @@ export function playPing(force = false) {
     const ctx = _audioCtx;
     if (ctx.state === 'suspended') ctx.resume();
     const notes = TONES[getTone()] || TONES.campana;
-    notes.forEach((freq, i) => {
-      const t0 = ctx.currentTime + i * 0.16;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine'; osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.32);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(t0); osc.stop(t0 + 0.34);
-    });
+    const L = LEVELS[getAlarmLevel()] || LEVELS.medium;
+    const seqLen = notes.length * 0.16 + 0.22; // separación entre repeticiones
+    for (let r = 0; r < L.reps; r += 1) {
+      const base = ctx.currentTime + r * seqLen;
+      notes.forEach((freq, i) => {
+        const t0 = base + i * 0.16;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine'; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.exponentialRampToValueAtTime(L.vol, t0 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + L.dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t0); osc.stop(t0 + L.dur + 0.02);
+      });
+    }
+    if (getAlarmLevel() === 'strong') { try { navigator.vibrate && navigator.vibrate([200, 120, 200, 120, 300]); } catch {} }
   } catch {}
 }
 
