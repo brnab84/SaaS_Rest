@@ -12,7 +12,7 @@ jobs:
       matrix:
         node: [20, 22]
     env:
-      # Vars mínimas para que env.js no falle al importar (los tests no conectan a Mongo).
+      # Vars mínimas para que env.js no falle al importar. Los e2e levantan su propia Mongo en memoria.
       MONGODB_URI: mongodb://localhost/test
       JWT_SECRET: test-secret-ci
     steps:
@@ -30,5 +30,19 @@ jobs:
         run: |
           for f in $(find src -name '*.js'); do node --check "$f"; done
 
-      - name: Tests
+      - name: Tests unitarios + e2e de API (Mongo en memoria)
         run: npm test
+
+  ui-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Instalar navegador de Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Smoke de UI (panel + storefront)
+        run: npx playwright test

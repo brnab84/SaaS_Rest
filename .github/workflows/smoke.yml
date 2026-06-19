@@ -1,0 +1,23 @@
+name: Smoke post-deploy
+
+# Verifica la app en vivo: manual (workflow_dispatch) y cada 6 horas.
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: URL a chequear
+        required: false
+        default: https://api-production-1cc8.up.railway.app
+  schedule:
+    - cron: '0 */6 * * *'
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Smoke contra producción
+        run: node scripts/smoke.mjs "${{ github.event.inputs.url || 'https://api-production-1cc8.up.railway.app' }}"

@@ -108,6 +108,12 @@ function setFavicon(url) {
 
 function start() {
   if (!isAuthed()) { renderLogin(); return; }
+  enterApp();
+}
+
+// Entra al panel: render + detección de root (pestaña Admin) + badge de mensajes.
+// Se usa tanto al cargar la página logueado como al iniciar sesión / crear cuenta.
+function enterApp() {
   renderApp();
   detectRoot(); // asíncrono: si la cuenta es root, agrega la pestaña Admin
   startMsgPoll(); // badge de mensajes sin leer
@@ -204,7 +210,7 @@ function renderLogin() {
     e.preventDefault();
     const btn = document.getElementById('login-btn'); const err = document.getElementById('login-error');
     err.textContent = ''; btn.disabled = true; btn.textContent = 'Entrando…';
-    try { await login(document.getElementById('email').value.trim(), document.getElementById('password').value); location.hash = '#/resumen'; renderApp(); }
+    try { await login(document.getElementById('email').value.trim(), document.getElementById('password').value); location.hash = '#/resumen'; enterApp(); }
     catch (ex) { err.textContent = ex.message || 'No se pudo iniciar sesión'; btn.disabled = false; btn.textContent = 'Entrar'; }
   });
   getAuthConfig().then((cfg) => {
@@ -252,7 +258,7 @@ function renderSignup() {
     err.textContent = ''; btn.disabled = true; btn.textContent = 'Creando…';
     try {
       await register({ businessName: biz.value.trim(), slug: slugify(slug.value), email: document.getElementById('su-email').value.trim(), password: document.getElementById('su-pass').value });
-      location.hash = '#/resumen'; renderApp();
+      location.hash = '#/resumen'; enterApp();
     } catch (ex) { err.textContent = ex.message || 'No se pudo crear la cuenta'; btn.disabled = false; btn.textContent = 'Crear cuenta'; }
   });
 }
