@@ -620,12 +620,24 @@ async function renderGenerales(host) {
     box.innerHTML = `
       <div class="xls-tools">
         <button class="btn btn-sm" id="grid-add">+ fila</button>
+        <button class="btn btn-sm btn-danger" id="grid-del">🗑 Borrar fila</button>
         <button class="btn btn-sm" id="col-add">＋ columna</button>
         ${columns.map((c) => `<span class="col-chip">${esc(c.label)}<span class="col-x" data-delcol="${c.key}" title="Eliminar columna">✕</span></span>`).join('')}
-        <span class="help">Como en Excel: doble clic para escribir, Tab/Enter para moverte, <b>copiar y pegar desde Excel</b>. Se guarda solo.</span>
+        <span class="save-status" id="save-status" data-state="ok">✓ Guardado</span>
+        <span class="help">Tocá una celda y escribí; Tab/Enter para moverte. Para borrar: seleccioná la fila y "🗑 Borrar fila".</span>
       </div>
       <div id="xls-grid"></div>`;
     const el = box.querySelector('#xls-grid');
+    const statusEl = box.querySelector('#save-status');
+    let statusTimer = null;
+    const setStatus = (state) => { // ok | saving | error
+      if (!statusEl) return;
+      clearTimeout(statusTimer);
+      statusEl.dataset.state = state;
+      statusEl.textContent = state === 'saving' ? '⏳ Guardando…' : state === 'error' ? '⚠ No se pudo guardar' : '✓ Guardado';
+      if (state === 'ok') { statusEl.textContent = '✓ Guardado ahora'; statusTimer = setTimeout(() => { statusEl.textContent = '✓ Guardado'; }, 2000); }
+    };
+    let selRow = null; // fila seleccionada (para "Borrar fila")
     const vendors = [...new Set(items.map((x) => x.vendor).filter(Boolean))];
     const catSource = EXP_CATS.map((c) => ({ id: c.value, name: c.label }));
     const blankRow = () => ['', today, '', '', '', '', 'supplies', ...columns.map(() => '')];
@@ -661,6 +673,7 @@ async function renderGenerales(host) {
         columns.forEach((c, i) => { const v = r[7 + i]; if (v !== '' && v != null) custom[c.key] = v; });
         body.custom = custom;
       }
+      setStatus('saving');
       try {
         if (id) {
           const up = await expensesApi.update(id, body);
@@ -673,7 +686,9 @@ async function renderGenerales(host) {
           syncing = false;
         }
         updateSummary();
-      } catch (e) { syncing = false; toast(e.message || 'No se pudo guardar', 'error'); }
+        setStatus('ok');
+        try { const tr = el.querySelector(`tbody tr:nth-child(${y + 1})`); if (tr) { tr.classList.add('row-saved'); setTimeout(() => tr.classList.remove('row-saved'), 900); } } catch {}
+      } catch (e) { syncing = false; setStatus('error'); toast(e.message || 'No se pudo guardar', 'error'); }
     };
 
     grid = window.jspreadsheet(el, {
@@ -694,6 +709,7 @@ async function renderGenerales(host) {
         { type: 'dropdown', title: 'Categoría', width: 150, source: catSource },
         ...columns.map((c) => ({ type: 'text', title: c.label, width: 150 })),
       ],
+      onselection: (instance, x1, y1) => { selRow = Number(y1); },
       onchange: (instance, cell, colX, rowY) => { if (!syncing) saveRowAt(Number(rowY)); },
       ondeleterow: async (instance, rowNumber, numOfRows, rowDOM, rowData) => {
         for (const vals of (rowData || [])) {
@@ -709,6 +725,18 @@ async function renderGenerales(host) {
       const n = grid.getData().length;
       grid.insertRow();
       try { syncing = true; grid.setValueFromCoords(1, n, today, true); syncing = false; } catch { syncing = false; } // prefijar el Día
+    });
+    box.querySelector('#grid-del').addEventListener('click', async () => {
+      if (selRow == null) { toast('Tocá una celda de la fila que querés borrar', 'info'); return; }
+      const y = selRow;
+      const id = grid.getRowData(y)?.[0];
+      if (!(await confirmDialog('¿Borrar esta fila?'))) return;
+      setStatus('saving');
+      try {
+        if (id) { await expensesApi.remove(id); items = items.filter((e) => e._id !== id); }
+        syncing = true; grid.deleteRow(y); syncing = false;
+        selRow = null; updateSummary(); setStatus('ok');
+      } catch (e) { syncing = false; setStatus('error'); toast(e.message || 'No se pudo borrar', 'error'); }
     });
     box.querySelector('#col-add').addEventListener('click', async () => {
       const label = window.prompt('Nombre de la columna (ej. N° factura, Forma de pago):');

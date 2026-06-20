@@ -188,6 +188,12 @@ button { font-family: var(--font); cursor: pointer; }
 .sheet-add:hover { border-color: var(--accent); }
 /* Planilla Excel (Jspreadsheet CE) adaptada al tema de la app */
 .xls-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+/* Indicador de guardado de la planilla */
+.save-status { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+.save-status[data-state="ok"] { color: #16a34a; background: color-mix(in srgb, #16a34a 14%, transparent); }
+.save-status[data-state="saving"] { color: var(--muted); background: var(--surface-2); }
+.save-status[data-state="error"] { color: #e5484d; background: color-mix(in srgb, #e5484d 16%, transparent); }
+.jexcel tbody tr.row-saved > td { background: color-mix(in srgb, #16a34a 20%, transparent) !important; transition: background .5s; }
 .col-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 12px; }
 .col-chip .col-x { cursor: pointer; opacity: .6; }
 .col-chip .col-x:hover { opacity: 1; color: var(--danger, #e5484d); }

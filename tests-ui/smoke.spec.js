@@ -67,6 +67,30 @@ test('panel: la planilla crea una fila nueva (+ fila → guardar)', async ({ pag
   await expect(page.locator('.jexcel td[data-x="2"]').filter({ hasText: 'Servilletas QA' })).toBeVisible({ timeout: 10000 });
 });
 
+test('panel: la planilla borra una fila (🗑) y persiste', async ({ page }) => {
+  await login(page, 'qa@test.local');
+  await page.locator('.tab[data-nav="gastos"]').click();
+  await page.locator('.seg-btn[data-view="table"]').click();
+  await expect(page.locator('.jexcel')).toBeVisible({ timeout: 10000 });
+  // crear una fila conocida para luego borrarla
+  await page.click('#grid-add');
+  const y = await page.locator('.jexcel tbody tr').last().locator('td[data-x="2"]').getAttribute('data-y');
+  await page.locator(`.jexcel td[data-x="2"][data-y="${y}"]`).dblclick();
+  await page.keyboard.type('Borrarme QA');
+  await page.keyboard.press('Tab');
+  await page.locator(`.jexcel td[data-x="5"][data-y="${y}"]`).dblclick();
+  await page.keyboard.type('99');
+  await page.keyboard.press('Tab');
+  await expect(page.locator('.jexcel td[data-x="2"]').filter({ hasText: 'Borrarme QA' })).toBeVisible({ timeout: 10000 });
+  // seleccionar la fila y borrarla con el botón
+  await page.locator(`.jexcel td[data-x="2"][data-y="${y}"]`).click();
+  await page.click('#grid-del');
+  await page.locator('.modal-footer [data-yes]').click(); // confirmar
+  await page.waitForTimeout(700);
+  await page.reload();
+  await expect(page.locator('.jexcel td[data-x="2"]').filter({ hasText: 'Borrarme QA' })).toHaveCount(0, { timeout: 10000 });
+});
+
 test('panel: gastos en hojas (pestañas)', async ({ page }) => {
   await login(page, 'qa@test.local');
   await page.locator('.tab[data-nav="gastos"]').click();
