@@ -49,6 +49,20 @@ test('panel: la planilla Excel guarda al editar una celda', async ({ page }) => 
   await expect(page.locator('.jexcel td[data-x="2"][data-y="0"]')).toHaveText('Harina editada QA', { timeout: 10000 });
 });
 
+test('panel: editar el Precio de una fila existente persiste', async ({ page }) => {
+  await login(page, 'qa@test.local');
+  await page.locator('.tab[data-nav="gastos"]').click();
+  await page.locator('.seg-btn[data-view="table"]').click();
+  await expect(page.locator('.jexcel')).toBeVisible({ timeout: 10000 });
+  await page.locator('.jexcel td[data-x="5"][data-y="0"]').dblclick(); // Precio, primera fila
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.type('73219');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(700);
+  await page.reload();
+  await expect(page.locator('.jexcel td[data-x="5"]').filter({ hasText: '73219' })).toHaveCount(1, { timeout: 10000 });
+});
+
 test('panel: la planilla crea una fila nueva (+ fila → guardar)', async ({ page }) => {
   await login(page, 'qa@test.local');
   await page.locator('.tab[data-nav="gastos"]').click();

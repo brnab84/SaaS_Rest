@@ -654,10 +654,17 @@ async function renderGenerales(host) {
     const data = sortedItems().map(rowOf);
     let grid; let syncing = false;
 
+    const parseNum = (v) => { // tolera "1.234,56" (es-AR) y "1234.56"
+      if (typeof v === 'number') return v;
+      let s = String(v ?? '').trim();
+      if (!s) return NaN;
+      if (/,\d{1,2}$/.test(s) || (s.includes('.') && s.includes(','))) s = s.replace(/\./g, '').replace(',', '.');
+      return Number(s.replace(/[^0-9.\-]/g, ''));
+    };
     const saveRowAt = async (y) => {
       const r = grid.getRowData(y);
       const id = r[0];
-      const total = Number(r[5]);
+      const total = parseNum(r[5]);
       const product = String(r[2] || '').trim();
       if (!Number.isFinite(total) || total <= 0) return; // fila incompleta: aún no guardamos
       const body = {

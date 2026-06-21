@@ -19,6 +19,7 @@ async function request(path, { method = 'GET', body } = {}) {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    cache: 'no-store', // datos siempre frescos: evita 304/copias viejas (la lista "no se actualizaba")
   });
 
   if (res.status === 401) { logout(); throw new ApiError('Sesión expirada', 401); }
