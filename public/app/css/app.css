@@ -163,6 +163,12 @@ button { font-family: var(--font); cursor: pointer; }
 .xls .xc:focus, .xls .xn:focus { border-color: var(--accent); background: var(--surface); outline: none; }
 .xls .xc.num, .xls .xn.num { min-width: 80px; text-align: right; font-family: var(--font-mono); }
 .xls select.xc, .xls select.xn { min-width: 110px; }
+/* Celdas nativas de la planilla principal (.gc): clic y escribís */
+.xls .gc { width: 100%; min-width: 90px; border: 1px solid transparent; background: transparent; color: inherit; padding: 8px 6px; border-radius: 6px; font: inherit; }
+.xls .gc:hover { border-color: var(--border-color); }
+.xls .gc:focus { border-color: var(--accent); background: var(--surface); outline: none; }
+.xls .gc.num { min-width: 90px; text-align: right; font-family: var(--font-mono); }
+.xls select.gc { min-width: 120px; }
 .xls tbody.xls-new { border-top: 2px dashed var(--accent); }
 .xls tbody.xls-new tr { background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .xls tr.saved { background: color-mix(in srgb, #16a34a 22%, transparent) !important; transition: background .4s; }

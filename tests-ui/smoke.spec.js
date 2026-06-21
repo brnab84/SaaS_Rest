@@ -26,7 +26,7 @@ test('panel: comercio normal — todas las pestañas cargan sin error de consola
   await page.locator('.seg-btn[data-gt="generales"]').click();
   await expect(page.locator('.exp-summary .sum-amt')).toBeVisible(); // resumen (total) de la hoja
   await page.locator('.seg-btn[data-view="table"]').click();
-  await expect(page.locator('.jexcel')).toBeVisible({ timeout: 10000 }); // planilla Excel (Jspreadsheet CE)
+  await expect(page.locator('.xls tbody tr [data-f="total"]').first()).toBeVisible({ timeout: 10000 }); // planilla nativa
   await page.locator('.seg-btn[data-view="cards"]').click();
   // un comercio normal NO debe ver la pestaña ni el botón Admin
   await expect(page.locator('.tab[data-nav="admin"]')).toHaveCount(0);
@@ -34,75 +34,54 @@ test('panel: comercio normal — todas las pestañas cargan sin error de consola
   expect(errors, `errores de consola:\n${errors.join('\n')}`).toEqual([]);
 });
 
-test('panel: la planilla Excel guarda al editar una celda', async ({ page }) => {
+// Helper: en la planilla nativa, la última fila (sin data-id) es la fila en blanco para cargar.
+async function gotoPlanilla(page) {
   await login(page, 'qa@test.local');
   await page.locator('.tab[data-nav="gastos"]').click();
   await page.locator('.seg-btn[data-view="table"]').click();
-  await expect(page.locator('.jexcel')).toBeVisible({ timeout: 10000 });
-  const cell = page.locator('.jexcel td[data-x="2"][data-y="0"]'); // columna Producto, primera fila
-  await cell.dblclick();
-  await page.keyboard.press('ControlOrMeta+A');
-  await page.keyboard.type('Harina editada QA');
-  await page.keyboard.press('Enter');
-  await page.waitForTimeout(700); // deja viajar el PATCH
-  await page.reload(); // recarga (queda en #/gastos, vista tabla): debe persistir
-  await expect(page.locator('.jexcel td[data-x="2"][data-y="0"]')).toHaveText('Harina editada QA', { timeout: 10000 });
-});
+  await expect(page.locator('.xls tbody tr [data-f="total"]').first()).toBeVisible({ timeout: 10000 });
+}
+const totalValues = (page) => page.locator('.xls [data-f="total"]').evaluateAll((els) => els.map((e) => e.value));
+const productValues = (page) => page.locator('.xls [data-f="product"]').evaluateAll((els) => els.map((e) => e.value));
 
 test('panel: editar el Precio de una fila existente persiste', async ({ page }) => {
-  await login(page, 'qa@test.local');
-  await page.locator('.tab[data-nav="gastos"]').click();
-  await page.locator('.seg-btn[data-view="table"]').click();
-  await expect(page.locator('.jexcel')).toBeVisible({ timeout: 10000 });
-  await page.locator('.jexcel td[data-x="5"][data-y="0"]').dblclick(); // Precio, primera fila
-  await page.keyboard.press('ControlOrMeta+A');
-  await page.keyboard.type('73219');
-  await page.keyboard.press('Enter');
+  await gotoPlanilla(page);
+  const cell = page.locator('.xls tbody tr [data-f="total"]').first();
+  await cell.fill('73219');
+  await cell.press('Tab'); // blur → change → guarda (PATCH)
   await page.waitForTimeout(700);
   await page.reload();
-  await expect(page.locator('.jexcel td[data-x="5"]').filter({ hasText: '73219' })).toHaveCount(1, { timeout: 10000 });
+  expect(await totalValues(page)).toContain('73219');
 });
 
-test('panel: la planilla crea una fila nueva (+ fila → guardar)', async ({ page }) => {
-  await login(page, 'qa@test.local');
-  await page.locator('.tab[data-nav="gastos"]').click();
-  await page.locator('.seg-btn[data-view="table"]').click();
-  await expect(page.locator('.jexcel')).toBeVisible({ timeout: 10000 });
-  await page.click('#grid-add'); // + fila
-  const y = await page.locator('.jexcel tbody tr').last().locator('td[data-x="2"]').getAttribute('data-y');
-  await page.locator(`.jexcel td[data-x="2"][data-y="${y}"]`).dblclick(); // Producto
-  await page.keyboard.type('Servilletas QA');
-  await page.keyboard.press('Tab'); // commit sin crear otra fila
-  await page.locator(`.jexcel td[data-x="5"][data-y="${y}"]`).dblclick(); // Precio
-  await page.keyboard.type('450');
-  await page.keyboard.press('Tab'); // commit → onchange → crea el gasto
-  await page.waitForTimeout(900); // deja viajar el POST
+test('panel: cargar el Precio en la fila en blanco crea el gasto', async ({ page }) => {
+  await gotoPlanilla(page);
+  const row = page.locator('.xls tbody tr').last(); // fila en blanco
+  await row.locator('[data-f="product"]').fill('Servilletas QA');
+  await row.locator('[data-f="total"]').fill('800');
+  await row.locator('[data-f="total"]').press('Tab'); // change → crea (POST)
+  await page.waitForTimeout(800);
   await page.reload();
-  await expect(page.locator('.jexcel td[data-x="2"]').filter({ hasText: 'Servilletas QA' })).toBeVisible({ timeout: 10000 });
+  expect(await productValues(page)).toContain('Servilletas QA');
 });
 
-test('panel: la planilla borra una fila (🗑) y persiste', async ({ page }) => {
-  await login(page, 'qa@test.local');
-  await page.locator('.tab[data-nav="gastos"]').click();
-  await page.locator('.seg-btn[data-view="table"]').click();
-  await expect(page.locator('.jexcel')).toBeVisible({ timeout: 10000 });
-  // crear una fila conocida para luego borrarla
-  await page.click('#grid-add');
-  const y = await page.locator('.jexcel tbody tr').last().locator('td[data-x="2"]').getAttribute('data-y');
-  await page.locator(`.jexcel td[data-x="2"][data-y="${y}"]`).dblclick();
-  await page.keyboard.type('Borrarme QA');
-  await page.keyboard.press('Tab');
-  await page.locator(`.jexcel td[data-x="5"][data-y="${y}"]`).dblclick();
-  await page.keyboard.type('99');
-  await page.keyboard.press('Tab');
-  await expect(page.locator('.jexcel td[data-x="2"]').filter({ hasText: 'Borrarme QA' })).toBeVisible({ timeout: 10000 });
-  // seleccionar la fila y borrarla con el botón
-  await page.locator(`.jexcel td[data-x="2"][data-y="${y}"]`).click();
-  await page.click('#grid-del');
-  await page.locator('.modal-footer [data-yes]').click(); // confirmar
+test('panel: borrar una fila (✕) persiste', async ({ page }) => {
+  await gotoPlanilla(page);
+  const row = page.locator('.xls tbody tr').last();
+  await row.locator('[data-f="product"]').fill('Borrarme QA');
+  await row.locator('[data-f="total"]').fill('99');
+  await row.locator('[data-f="total"]').press('Tab');
+  await page.waitForTimeout(700);
+  expect(await productValues(page)).toContain('Borrarme QA');
+  // borrar la fila cuyo producto es "Borrarme QA"
+  await page.evaluate(() => {
+    const tr = [...document.querySelectorAll('.xls tbody tr')].find((t) => t.querySelector('[data-f="product"]')?.value === 'Borrarme QA');
+    tr?.querySelector('[data-delrow]')?.click();
+  });
+  await page.locator('.modal-footer [data-yes]').click();
   await page.waitForTimeout(700);
   await page.reload();
-  await expect(page.locator('.jexcel td[data-x="2"]').filter({ hasText: 'Borrarme QA' })).toHaveCount(0, { timeout: 10000 });
+  expect(await productValues(page)).not.toContain('Borrarme QA');
 });
 
 test('panel: gastos en hojas (pestañas)', async ({ page }) => {
@@ -118,10 +97,10 @@ test('panel: agregar columna propia a la planilla', async ({ page }) => {
   await login(page, 'qa@test.local');
   await page.locator('.tab[data-nav="gastos"]').click();
   await page.locator('.seg-btn[data-view="table"]').click();
-  await expect(page.locator('.jexcel')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.xls tbody tr [data-f="total"]').first()).toBeVisible({ timeout: 10000 });
   page.once('dialog', (d) => d.accept('N factura QA')); // prompt del nombre de la columna
   await page.click('#col-add');
-  await expect(page.locator('.col-chip', { hasText: 'N factura QA' })).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.xls thead th', { hasText: 'N factura QA' })).toBeVisible({ timeout: 10000 });
 });
 
 test('panel: la cuenta root ve la pestaña Admin y abre el panel', async ({ page }) => {

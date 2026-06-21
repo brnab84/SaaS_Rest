@@ -489,7 +489,8 @@ async function renderGenerales(host) {
     </div>
     <div class="seg" style="margin-bottom:10px">
       <button class="seg-btn" data-view="cards">▤ Tarjetas</button>
-      <button class="seg-btn" data-view="table">▦ Planilla (Excel)</button>
+      <button class="seg-btn" data-view="table">▦ Planilla</button>
+      <button class="seg-btn" data-view="excel">⊞ Excel (pegar)</button>
     </div>
     <div class="exp-summary">
       <div class="sum-box"><span class="sum-lbl">Total · ${esc(sheetName)}</span><b class="sum-amt">${money.format(total)}</b><span class="sum-count">${items.length} gasto${items.length === 1 ? '' : 's'}</span></div>
@@ -761,13 +762,111 @@ async function renderGenerales(host) {
     }));
   }
 
+  // Planilla con inputs NATIVOS: clic en la celda y escribís (sin doble clic), se guarda al
+  // salir de la celda. Confiable en cualquier dispositivo, con columnas propias e indicador.
+  function renderNativeGrid(box) {
+    const parseNum = (val) => { if (typeof val === 'number') return val; let s = String(val ?? '').trim(); if (!s) return NaN; if (/,\d{1,2}$/.test(s) || (s.includes('.') && s.includes(','))) s = s.replace(/\./g, '').replace(',', '.'); return Number(s.replace(/[^0-9.\-]/g, '')); };
+    const vendors = [...new Set(items.map((x) => x.vendor).filter(Boolean))];
+    const colHead = columns.map((c) => `<th>${esc(c.label)} <span class="col-x" data-delcol="${c.key}" title="Eliminar columna">✕</span></th>`).join('');
+    const colCells = (cu) => columns.map((c) => `<td><input class="gc" data-f="c:${c.key}" value="${esc(cu?.[c.key] ?? '')}"></td>`).join('');
+    const rowHtml = (x) => `<tr${x._id ? ` data-id="${x._id}"` : ''}>
+      <td data-l="Día"><input class="gc" type="date" data-f="date" value="${x.date ? ymd(x.date) : today}"></td>
+      <td data-l="Producto"><input class="gc" data-f="product" value="${esc(x.items?.[0]?.desc || '')}" placeholder="Producto"></td>
+      <td data-l="Proveedor"><input class="gc" data-f="vendor" list="exp-vendors" value="${esc(x.vendor || '')}" placeholder="Proveedor"></td>
+      <td data-l="Cantidad"><input class="gc" data-f="note" value="${esc(x.note || '')}" placeholder="Cant."></td>
+      <td data-l="Precio"><input class="gc num" type="number" inputmode="decimal" step="0.01" min="0" data-f="total" value="${x.total ?? ''}" placeholder="0"></td>
+      <td data-l="Categoría"><select class="gc" data-f="category">${catOpts(x.category)}</select></td>
+      ${colCells(x.custom)}
+      <td class="xls-act"><button class="btn btn-sm btn-danger" data-delrow title="Borrar fila">✕</button></td>
+    </tr>`;
+    const blank = { _id: '', date: today, items: [], vendor: '', note: '', total: '', category: 'supplies', custom: {} };
+    box.innerHTML = `
+      <div class="xls-tools">
+        <button class="btn btn-sm" id="add-row">+ fila</button>
+        <button class="btn btn-sm" id="col-add">＋ columna</button>
+        <span class="save-status" id="save-status" data-state="ok">✓ Guardado</span>
+        <span class="help">Tocá una celda y escribí — se guarda al salir de la celda. Cargá el <b>Precio</b> para que la fila se cree.</span>
+      </div>
+      <div class="xls-wrap"><table class="xls"><thead><tr>
+        <th>Día</th><th>Producto</th><th>Proveedor</th><th>Cantidad</th><th class="num">Precio</th><th>Categoría</th>${colHead}<th></th>
+      </tr></thead>
+      <tbody>${sortedItems().map(rowHtml).join('')}${rowHtml(blank)}</tbody></table></div>
+      <datalist id="exp-vendors">${vendors.map((v) => `<option value="${esc(v)}">`).join('')}</datalist>`;
+
+    const statusEl = box.querySelector('#save-status'); let st;
+    const setStatus = (s) => { if (!statusEl) return; clearTimeout(st); statusEl.dataset.state = s; statusEl.textContent = s === 'saving' ? '⏳ Guardando…' : s === 'error' ? '⚠ No se pudo guardar' : '✓ Guardado'; if (s === 'ok') { statusEl.textContent = '✓ Guardado ahora'; st = setTimeout(() => { statusEl.textContent = '✓ Guardado'; }, 2000); } };
+    const readRow = (tr) => {
+      const v = (f) => { const e = tr.querySelector(`[data-f="${f}"]`); return e ? e.value : ''; };
+      const total = parseNum(v('total'));
+      const product = v('product').trim();
+      const custom = {}; columns.forEach((c) => { const val = String(v(`c:${c.key}`)).trim(); if (val) custom[c.key] = val; });
+      const body = { vendor: v('vendor').trim() || undefined, note: v('note').trim() || undefined, total, category: v('category') || 'supplies', date: v('date') || undefined, items: product ? [{ desc: product, amount: total }] : [] };
+      if (columns.length) body.custom = custom;
+      return { body, total };
+    };
+    let wireRow;
+    const saveTr = async (tr) => {
+      const { body, total } = readRow(tr);
+      if (!Number.isFinite(total) || total <= 0) return; // sin precio válido: todavía no guardamos
+      const id = tr.dataset.id;
+      setStatus('saving');
+      try {
+        if (id) {
+          const up = await expensesApi.update(id, body);
+          const x = items.find((e) => e._id === id); if (x) Object.assign(x, up);
+        } else {
+          const created = await expensesApi.create({ ...body, sheetId: sheetIdForNew() });
+          items.push(created); tr.dataset.id = created._id;
+          const tbody = tr.parentElement; // la fila se "consumió": dejar otra en blanco al final
+          if (tr === tbody.lastElementChild) { tbody.insertAdjacentHTML('beforeend', rowHtml(blank)); wireRow(tbody.lastElementChild); }
+        }
+        updateSummary();
+        tr.classList.add('saved'); setTimeout(() => tr.classList.remove('saved'), 900);
+        setStatus('ok');
+      } catch (e) { setStatus('error'); toast(e.message || 'No se pudo guardar', 'error'); }
+    };
+    const delTr = async (tr) => {
+      const id = tr.dataset.id;
+      if (!(await confirmDialog('¿Borrar esta fila?'))) return;
+      setStatus('saving');
+      try { if (id) { await expensesApi.remove(id); items = items.filter((e) => e._id !== id); } tr.remove(); updateSummary(); setStatus('ok'); }
+      catch (e) { setStatus('error'); toast(e.message || 'No se pudo borrar', 'error'); }
+    };
+    wireRow = (tr) => {
+      tr.querySelectorAll('.gc').forEach((el) => el.addEventListener('change', () => saveTr(tr)));
+      const del = tr.querySelector('[data-delrow]'); if (del) del.addEventListener('click', () => delTr(tr));
+    };
+    box.querySelectorAll('tbody tr').forEach(wireRow);
+    box.querySelector('#add-row').addEventListener('click', () => {
+      const tbody = box.querySelector('tbody');
+      tbody.insertAdjacentHTML('beforeend', rowHtml(blank));
+      const tr = tbody.lastElementChild; wireRow(tr);
+      const inp = tr.querySelector('[data-f="product"]'); if (inp) inp.focus();
+    });
+    box.querySelector('#col-add').addEventListener('click', async () => {
+      const label = window.prompt('Nombre de la columna (ej. N° factura, Forma de pago):');
+      if (!label || !label.trim()) return;
+      const key = slugCol(label) || `col_${Date.now()}`;
+      if (columns.some((c) => c.key === key)) { toast('Ya existe una columna así', 'error'); return; }
+      await tenantApi.update({ settings: { expenseColumns: [...columns, { key, label: label.trim(), type: 'text' }] } });
+      toast('Columna agregada', 'success'); reload();
+    });
+    box.querySelectorAll('[data-delcol]').forEach((b) => b.addEventListener('click', async () => {
+      if (await confirmDialog('¿Eliminar esta columna? Los datos ya cargados quedan guardados.')) {
+        await tenantApi.update({ settings: { expenseColumns: columns.filter((c) => c.key !== b.dataset.delcol) } });
+        toast('Columna eliminada', 'success'); reload();
+      }
+    }));
+  }
+
   function paint() {
     const view = getExpView();
     host.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('on', b.dataset.view === view));
     const box = host.querySelector('#genlist');
 
-    if (view === 'table') {
-      if (window.jspreadsheet) { mountExcelGrid(box); return; } // planilla Excel real
+    if (view === 'excel' && window.jspreadsheet) { mountExcelGrid(box); return; } // opción: planilla Excel (copiar/pegar)
+    if (view === 'table') { renderNativeGrid(box); return; } // planilla nativa (default, confiable)
+    if (view === 'oldtable') {
       if (!newRows.length) addNewRow();
       const arr = (f) => (_expSort.field === f ? (_expSort.dir < 0 ? ' ▾' : ' ▴') : '');
       const list = sortedItems();
