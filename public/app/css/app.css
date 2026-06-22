@@ -147,7 +147,7 @@ button { font-family: var(--font); cursor: pointer; }
 .btn-admin { background: var(--accent); color: #fff; border-color: var(--accent); white-space: nowrap; }
 .btn-admin:hover { filter: brightness(1.05); }
 /* Tabla tipo Excel (gastos) */
-.xls-wrap { overflow-x: auto; border: var(--border-w) var(--border-style) var(--border-color); border-radius: var(--radius); }
+.xls-wrap { overflow: auto; max-height: 65vh; border: var(--border-w) var(--border-style) var(--border-color); border-radius: var(--radius); }
 .xls { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 600px; }
 .xls th, .xls td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
 .xls thead th { background: var(--surface-2); font-weight: 700; position: sticky; top: 0; }
@@ -169,6 +169,18 @@ button { font-family: var(--font); cursor: pointer; }
 .xls .gc:focus { border-color: var(--accent); background: var(--surface); outline: none; }
 .xls .gc.num { min-width: 90px; text-align: right; font-family: var(--font-mono); }
 .xls select.gc { min-width: 120px; }
+/* Planilla pro: N° de fila, cebra, líneas, encabezado y total fijos */
+.xls td, .xls th { border-right: 1px solid var(--border-color); }
+.xls .rownum { width: 40px; min-width: 40px; text-align: center; color: var(--muted); background: var(--surface-2); font-family: var(--font-mono); font-size: 12px; user-select: none; padding: 0; }
+.xls tbody { counter-reset: rownum; }
+.xls tbody tr { counter-increment: rownum; }
+.xls tbody td.rownum::before { content: counter(rownum); }
+.xls tbody tr:nth-child(even) td:not(.rownum) { background: color-mix(in srgb, var(--surface-2) 45%, transparent); }
+.xls tbody tr:hover td:not(.rownum) { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.xls thead th { position: sticky; top: 0; z-index: 2; }
+.xls tfoot td { position: sticky; bottom: 0; z-index: 2; background: var(--surface-2); font-weight: 700; border-top: 2px solid var(--accent); padding: 10px 12px; }
+.xls tfoot .foot-total { text-align: right; font-family: var(--font-mono); font-size: 15px; }
+.xls tfoot .foot-label { text-align: right; color: var(--muted); }
 .xls tbody.xls-new { border-top: 2px dashed var(--accent); }
 .xls tbody.xls-new tr { background: color-mix(in srgb, var(--accent) 7%, transparent); }
 .xls tr.saved { background: color-mix(in srgb, #16a34a 22%, transparent) !important; transition: background .4s; }

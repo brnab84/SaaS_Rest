@@ -767,9 +767,11 @@ async function renderGenerales(host) {
   function renderNativeGrid(box) {
     const parseNum = (val) => { if (typeof val === 'number') return val; let s = String(val ?? '').trim(); if (!s) return NaN; if (/,\d{1,2}$/.test(s) || (s.includes('.') && s.includes(','))) s = s.replace(/\./g, '').replace(',', '.'); return Number(s.replace(/[^0-9.\-]/g, '')); };
     const vendors = [...new Set(items.map((x) => x.vendor).filter(Boolean))];
+    const arr = (f) => (_expSort.field === f ? (_expSort.dir < 0 ? ' ▾' : ' ▴') : '');
     const colHead = columns.map((c) => `<th>${esc(c.label)} <span class="col-x" data-delcol="${c.key}" title="Eliminar columna">✕</span></th>`).join('');
     const colCells = (cu) => columns.map((c) => `<td><input class="gc" data-f="c:${c.key}" value="${esc(cu?.[c.key] ?? '')}"></td>`).join('');
     const rowHtml = (x) => `<tr${x._id ? ` data-id="${x._id}"` : ''}>
+      <td class="rownum"></td>
       <td data-l="Día"><input class="gc" type="date" data-f="date" value="${x.date ? ymd(x.date) : today}"></td>
       <td data-l="Producto"><input class="gc" data-f="product" value="${esc(x.items?.[0]?.desc || '')}" placeholder="Producto"></td>
       <td data-l="Proveedor"><input class="gc" data-f="vendor" list="exp-vendors" value="${esc(x.vendor || '')}" placeholder="Proveedor"></td>
@@ -785,13 +787,27 @@ async function renderGenerales(host) {
         <button class="btn btn-sm" id="add-row">+ fila</button>
         <button class="btn btn-sm" id="col-add">＋ columna</button>
         <span class="save-status" id="save-status" data-state="ok">✓ Guardado</span>
-        <span class="help">Tocá una celda y escribí — se guarda al salir de la celda. Cargá el <b>Precio</b> para que la fila se cree.</span>
+        <span class="help">Clic en una celda y escribí · <b>Enter</b> baja, <b>Tab</b> avanza · se guarda al salir de la celda.</span>
       </div>
       <div class="xls-wrap"><table class="xls"><thead><tr>
-        <th>Día</th><th>Producto</th><th>Proveedor</th><th>Cantidad</th><th class="num">Precio</th><th>Categoría</th>${colHead}<th></th>
+        <th class="rownum">#</th>
+        <th data-sort="date">Día${arr('date')}</th>
+        <th data-sort="product">Producto${arr('product')}</th>
+        <th data-sort="vendor">Proveedor${arr('vendor')}</th>
+        <th>Cantidad</th>
+        <th data-sort="total" class="num">Precio${arr('total')}</th>
+        <th>Categoría</th>${colHead}<th></th>
       </tr></thead>
-      <tbody>${sortedItems().map(rowHtml).join('')}${rowHtml(blank)}</tbody></table></div>
+      <tbody>${sortedItems().map(rowHtml).join('')}${rowHtml(blank)}</tbody>
+      <tfoot><tr>
+        <td class="rownum"></td>
+        <td colspan="4" class="foot-label">Total</td>
+        <td class="num foot-total" id="grid-total"></td>
+        <td colspan="${2 + columns.length}"></td>
+      </tr></tfoot>
+      </table></div>
       <datalist id="exp-vendors">${vendors.map((v) => `<option value="${esc(v)}">`).join('')}</datalist>`;
+    const refreshFoot = () => { const t = items.reduce((a, x) => a + (Number(x.total) || 0), 0); const el = box.querySelector('#grid-total'); if (el) el.textContent = money.format(t); };
 
     const statusEl = box.querySelector('#save-status'); let st;
     const setStatus = (s) => { if (!statusEl) return; clearTimeout(st); statusEl.dataset.state = s; statusEl.textContent = s === 'saving' ? '⏳ Guardando…' : s === 'error' ? '⚠ No se pudo guardar' : '✓ Guardado'; if (s === 'ok') { statusEl.textContent = '✓ Guardado ahora'; st = setTimeout(() => { statusEl.textContent = '✓ Guardado'; }, 2000); } };
@@ -820,7 +836,7 @@ async function renderGenerales(host) {
           const tbody = tr.parentElement; // la fila se "consumió": dejar otra en blanco al final
           if (tr === tbody.lastElementChild) { tbody.insertAdjacentHTML('beforeend', rowHtml(blank)); wireRow(tbody.lastElementChild); }
         }
-        updateSummary();
+        updateSummary(); refreshFoot();
         tr.classList.add('saved'); setTimeout(() => tr.classList.remove('saved'), 900);
         setStatus('ok');
       } catch (e) { setStatus('error'); toast(e.message || 'No se pudo guardar', 'error'); }
@@ -829,7 +845,7 @@ async function renderGenerales(host) {
       const id = tr.dataset.id;
       if (!(await confirmDialog('¿Borrar esta fila?'))) return;
       setStatus('saving');
-      try { if (id) { await expensesApi.remove(id); items = items.filter((e) => e._id !== id); } tr.remove(); updateSummary(); setStatus('ok'); }
+      try { if (id) { await expensesApi.remove(id); items = items.filter((e) => e._id !== id); } tr.remove(); updateSummary(); refreshFoot(); setStatus('ok'); }
       catch (e) { setStatus('error'); toast(e.message || 'No se pudo borrar', 'error'); }
     };
     wireRow = (tr) => {
@@ -857,6 +873,23 @@ async function renderGenerales(host) {
         toast('Columna eliminada', 'success'); reload();
       }
     }));
+    // Navegación con teclado tipo planilla: Enter baja a la misma columna de la fila de abajo.
+    box.querySelector('table').addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const inp = e.target; if (!inp.classList || !inp.classList.contains('gc')) return;
+      const td = inp.closest('td'); const tr = inp.closest('tr'); const next = tr.nextElementSibling;
+      if (!next) return;
+      const idx = [...tr.children].indexOf(td);
+      const cell = next.children[idx] && next.children[idx].querySelector('.gc');
+      if (cell) { e.preventDefault(); cell.focus(); if (cell.select) cell.select(); }
+    });
+    // Ordenar por columna al hacer clic en el encabezado
+    box.querySelectorAll('th[data-sort]').forEach((th) => th.addEventListener('click', () => {
+      const f = th.dataset.sort;
+      if (_expSort.field === f) _expSort.dir *= -1; else _expSort = { field: f, dir: f === 'date' ? -1 : 1 };
+      renderNativeGrid(box);
+    }));
+    refreshFoot();
   }
 
   function paint() {
